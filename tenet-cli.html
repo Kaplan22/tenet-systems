@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TENET SYSTEMS — Settlement & Liquidity CLI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000000;--blue-bright:#6CBFEF;--blue-mid:#2E7BB5;
+  --blue-dim:#153E60;--blue-darker:#0A2438;--blue-input:#A8D8F5;
+  --green:#2EBD7A;--red:#D95050;--orange:#C98A1A;--white:#C2DFF2;
+  --glow-sm:0 0 7px rgba(108,191,239,0.55);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--blue-mid);font-family:'JetBrains Mono','Courier New',monospace;font-size:13px;line-height:1.65;overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 55%,rgba(0,0,0,0.55) 100%)}
+#app{display:flex;flex-direction:column;height:100vh}
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:7px 22px;border-bottom:1px solid var(--blue-darker);background:rgba(0,10,22,0.6)}
+#topbar-left{display:flex;align-items:baseline;gap:18px}
+#brand{font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--blue-bright);text-shadow:var(--glow-sm)}
+#tagline{font-size:10px;letter-spacing:.04em;color:var(--blue-darker)}
+#topbar-right{display:flex;align-items:center;gap:24px;font-size:11px;color:var(--blue-dim)}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);margin-right:5px;animation:livepulse 2.4s ease-in-out infinite}
+@keyframes livepulse{0%,100%{opacity:1}50%{opacity:.45}}
+#vault-display{color:var(--blue-mid);font-weight:500}
+#output{flex:1;overflow-y:auto;padding:14px 22px 8px;scroll-behavior:smooth}
+#output::-webkit-scrollbar{width:3px}
+#output::-webkit-scrollbar-thumb{background:var(--blue-darker);border-radius:2px}
+.ln{display:block;white-space:pre;animation:linein .1s ease-out both}
+@keyframes linein{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.ln.blank{height:7px}.ln.cmd{color:var(--white);font-weight:500}.ln.info{color:var(--blue-mid)}
+.ln.bright{color:var(--blue-bright);text-shadow:var(--glow-sm)}.ln.dim{color:var(--blue-dim)}
+.ln.darker{color:var(--blue-darker)}.ln.header{color:var(--blue-bright);font-weight:700;letter-spacing:.05em;text-shadow:var(--glow-sm)}
+.ln.sep{color:var(--blue-darker)}.ln.success{color:var(--green);text-shadow:0 0 6px rgba(46,189,122,.35)}
+.ln.error{color:var(--red);text-shadow:0 0 6px rgba(217,80,80,.3)}.ln.warn{color:var(--orange)}
+.cb{color:var(--blue-bright)}.cm{color:var(--blue-mid)}.cd{color:var(--blue-dim)}
+.cw{color:var(--white)}.cg{color:var(--green)}.cr{color:var(--red)}.co{color:var(--orange)}
+.st-done{color:var(--green)}.st-active{color:var(--blue-bright);text-shadow:var(--glow-sm)}.st-pending{color:var(--blue-darker)}
+#input-area{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:9px 22px;border-top:1px solid var(--blue-darker);background:rgba(0,10,22,.45)}
+#prompt-lbl{color:var(--blue-dim);white-space:nowrap;user-select:none;font-size:13px;transition:color .2s}
+#cmd-input{flex:1;background:transparent;border:none;outline:none;color:var(--blue-input);font-family:inherit;font-size:13px;caret-color:var(--blue-bright)}
+#cmd-input::placeholder{color:var(--blue-darker)}
+.order-block{display:flex;flex-direction:column}
+@keyframes ldots{0%{content:' ·'}33%{content:' ··'}66%{content:' ···'}100%{content:' ·'}}
+.ldots::after{content:' ·';animation:ldots 1.2s step-end infinite}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="topbar-left">
+      <span id="brand">TENET SYSTEMS</span>
+      <span id="tagline">Settlement &amp; Liquidity Orchestration · Pre-Seed 2026 · Confidential</span>
+    </div>
+    <div id="topbar-right">
+      <span id="eng-status"><span class="live-dot" id="eng-dot"></span><span id="eng-label">STANDALONE MODE</span></span>
+      <span id="fi-addr">GoldmanSachs_x800</span>
+      <span id="vault-display">VAULT ···</span>
+    </div>
+  </div>
+  <div id="output"></div>
+  <div id="input-area">
+    <span id="prompt-lbl">tenet &gt;</span>
+    <input id="cmd-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="type 'help' for available commands"/>
+  </div>
+</div>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// WEBSOCKET — connection to the Tenet engine server
+// ─────────────────────────────────────────────────────────────────
+// When the server is running (Docker or node server.js), the CLI
+// routes confirmed intents through WebSocket to the real engines.
+// If the server is unreachable, the CLI falls back to standalone
+// mock engines automatically. The FI never sees the difference.
+// ═══════════════════════════════════════════════════════════════════
+const WS_URL = localStorage.getItem('tenet-ws-url') || 'ws://localhost:8080';
+let _ws       = null;
+let _wsReady  = false;
+let _pendingOrderCallbacks = {}; // orderId → { resolve, reject }
+
+function wsConnect() {
+  try {
+    _ws = new WebSocket(WS_URL);
+  } catch(e) {
+    setEngineStatus('standalone');
+    return;
+  }
+
+  _ws.onopen = () => {
+    _wsReady = true;
+    setEngineStatus('connected');
+  };
+
+  _ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    wsHandleMessage(msg);
+  };
+
+  _ws.onclose = () => {
+    _wsReady = false;
+    setEngineStatus('standalone');
+    // Retry connection every 5 seconds quietly in background
+    setTimeout(wsConnect, 5000);
+  };
+
+  _ws.onerror = () => {
+    _wsReady = false;
+    setEngineStatus('standalone');
+  };
+}
+
+function wsSend(msg) {
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN) {
+    _ws.send(JSON.stringify(msg));
+    return true;
+  }
+  return false;
+}
+
+let _nextAcceptedCallback = null;
+
+function wsHandleMessage(msg) {
+  switch(msg.type) {
+
+    case 'state:full':
+      if (msg.data?.registries?.fi) {
+        const fi = msg.data.registries.fi[S.fi.tenetAddress];
+        if (fi) {
+          const vault = msg.data.vaults?.[fi.vault];
+          if (vault && vault.balance !== undefined) {
+            S.fi.vault.balance = vault.balance - vault.reserved;
+            refreshVault();
+          }
+        }
+      }
+      break;
+
+    case 'intent:accepted': {
+      const { orderId } = msg.data;
+      if (_nextAcceptedCallback) {
+        _nextAcceptedCallback(orderId);
+        _nextAcceptedCallback = null;
+      }
+      break;
+    }
+
+    case 'intent:rejected': {
+      const { reason, msg:detail } = msg.data;
+      _nextAcceptedCallback = null;
+      bl(); ln(`  ${reason}${detail?' — '+detail:''}`, 'error'); bl();
+      break;
+    }
+
+    case 'order:transition': {
+      const { orderId, to, order } = msg.data;
+      wsUpdateLifecycle(orderId, to, order);
+      if (to === 'AWAITING_SETTLEMENT' && order) {
+        S.fi.vault.balance = Math.max(0, S.fi.vault.balance - (order.total || 0));
+        refreshVault();
+      }
+      break;
+    }
+
+    case 'vault:update': {
+      const { vault } = msg.data;
+      if (vault?.fi === S.fi.tenetAddress && vault.balance !== undefined) {
+        S.fi.vault.balance = vault.balance - vault.reserved;
+        refreshVault();
+      }
+      break;
+    }
+  }
+}
+
+// Lifecycle animator driven by server state transitions
+const _liveBlocks = {}; // orderId → { blockEl, states }
+const ORDER_STATES = ['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED'];
+const STATE_LABELS = {
+  LIVE:               'vault reserved · searching for fills',
+  DELIVERING:         'asset transfer in progress · settlement extracting',
+  AWAITING_SETTLEMENT:'asset delivered · routing LP payout',
+  COMPLETED:          'settled',
+  FAILED:             'order failed',
+  INSUFFICIENT:       'insufficient vault balance',
+};
+
+function wsUpdateLifecycle(orderId, newState, order) {
+  const entry = _liveBlocks[orderId];
+  if (!entry) return;
+
+  const isFailed = ['FAILED','INSUFFICIENT'].includes(newState);
+  const displayStates = isFailed
+    ? [...ORDER_STATES.slice(0, Math.max(1, ORDER_STATES.indexOf(entry.lastState || 'LIVE') + 1)), newState]
+    : ORDER_STATES;
+
+  entry.lastState = newState;
+
+  let h = '';
+  for (const s of displayStates) {
+    const past    = ORDER_STATES.indexOf(s) < ORDER_STATES.indexOf(newState) && !isFailed;
+    const current = s === newState;
+    const dot     = past ? '●' : current ? '◉' : '○';
+    const cls     = past ? 'st-done' : current ? 'st-active' : 'st-pending';
+    h += `<span class="ln ${cls}">  [${dot}] ${rp(s, 26)} <span class="cd">${past||current ? (STATE_LABELS[s]||'') : ''}</span></span>\n`;
+  }
+  entry.blockEl.innerHTML = h;
+  $out.scrollTop = $out.scrollHeight;
+
+  if (newState === 'COMPLETED' && order) {
+    bl();
+    const dw = S.fi.wallets[order.delivChain] || `${S.fi.tenetAddress.split('_')[0]}Wallet_${order.delivChain}`;
+    ln(`  ✓  ${order.assetQty ? num(order.assetQty, 6) : '—'} ${order.asset}  →  ${dw}`, 'success');
+    ln(`  ✓  Settlement routed to LP${order.fills&&order.fills.length>1?'s':''} · native chain guaranteed`, 'success');
+    bl();
+    const det = [
+      ['execution_tx',  order.execTx       || '—'],
+      ['settlement_tx', order.settlTx      || '—'],
+      ['fee_collected', order.fee ? usd(order.fee)+' USDC' : '—'],
+      ['vault_balance', usd(S.fi.vault.balance)+' USDC'],
+      ['completed_at',  new Date().toISOString().replace('T',' ').slice(0,19)+' UTC'],
+    ];
+    for (const [k,v] of det) ln(`  <span class="cd">${rp(k,18)}</span> <span class="cm">${v}</span>`, 'info', true);
+    bl(); sep(); bl();
+    delete _liveBlocks[orderId];
+  }
+
+  if (isFailed && order) {
+    bl();
+    ln(`  ${newState} · ${order.failReason||newState}${order.failDetail?' — '+order.failDetail:''}`, 'error');
+    bl(); sep(); bl();
+    delete _liveBlocks[orderId];
+  }
+}
+
+function setEngineStatus(mode) {
+  const dot   = document.getElementById('eng-dot');
+  const label = document.getElementById('eng-label');
+  if (mode === 'connected') {
+    dot.style.background   = '#2EBD7A';
+    dot.style.boxShadow    = '0 0 6px #2EBD7A';
+    label.textContent      = 'ENGINE CONNECTED';
+    label.style.color      = '';
+  } else {
+    dot.style.background   = '#153E60';
+    dot.style.boxShadow    = 'none';
+    label.textContent      = 'STANDALONE MODE';
+    label.style.color      = 'var(--blue-dim)';
+  }
+}
+
+// num() is defined below in UTILS section — forward reference for WS layer
+
+// ── STATE ──────────────────────────────────────────────────────────
+const S={
+  fi:{
+    tenetAddress:'GoldmanSachs_x800',
+    identity:'Goldman Sachs Asset Management',
+    vault:{id:'GoldmanSettlementVault',balance:100_000_000},
+    wallets:{ETH:'GoldmanWallet_ETH',SOL:'GoldmanWallet_SOL',ARB:'GoldmanWallet_ARB',BASE:'GoldmanWallet_BASE',POLYGON:'GoldmanWallet_POLYGON'},
+  },
+  orders:[],counter:93847591,history:[],histIdx:-1,confirm:null,
+  sched:{active:false,mode:null,step:null,date:null,time:null,onFail:null,intents:[],single:null},
+};
+
+// ── FI REGISTRY — all registered FIs ──────────────────────────────
+const FI_PROFILES={
+  'GoldmanSachs_x800':{
+    tenetAddress:'GoldmanSachs_x800',
+    identity:'Goldman Sachs Asset Management',
+    vault:{id:'GoldmanSettlementVault',balance:100_000_000},
+    wallets:{ETH:'GoldmanWallet_ETH',SOL:'GoldmanWallet_SOL',ARB:'GoldmanWallet_ARB',BASE:'GoldmanWallet_BASE',POLYGON:'GoldmanWallet_POLYGON'},
+  },
+  'JPMorgan_x240':{
+    tenetAddress:'JPMorgan_x240',
+    identity:'JPMorgan Asset Management',
+    vault:{id:'JPMorganSettlementVault',balance:250_000_000},
+    wallets:{ETH:'JPMorganWallet_ETH',SOL:'JPMorganWallet_SOL',ARB:'JPMorganWallet_ARB',BASE:'JPMorganWallet_BASE',POLYGON:'JPMorganWallet_POLYGON'},
+  },
+  'BlackRock_x320':{
+    tenetAddress:'BlackRock_x320',
+    identity:'BlackRock Inc.',
+    vault:{id:'BlackRockSettlementVault',balance:500_000_000},
+    wallets:{ETH:'BlackRockWallet_ETH',SOL:'BlackRockWallet_SOL',ARB:'BlackRockWallet_ARB',BASE:'BlackRockWallet_BASE',POLYGON:'BlackRockWallet_POLYGON'},
+  },
+  'Fidelity_x510':{
+    tenetAddress:'Fidelity_x510',
+    identity:'Fidelity Investments',
+    vault:{id:'FidelitySettlementVault',balance:50_000_000},
+    wallets:{ETH:'FidelityWallet_ETH',SOL:'FidelityWallet_SOL',ARB:'FidelityWallet_ARB',BASE:'FidelityWallet_BASE',POLYGON:'FidelityWallet_POLYGON'},
+  },
+};
+
+function cmdSwitch(args){
+  // Usage: switch <tenetAddress or short name>
+  // e.g.  switch BlackRock  or  switch BlackRock_x320
+  if(!args.length){
+    bl();
+    ln(`  Registered FIs:`,'dim');bl();
+    Object.values(FI_PROFILES).forEach(f=>{
+      const active=f.tenetAddress===S.fi.tenetAddress;
+      ln(`  <span class="${active?'cg':'cd'}">${active?'●':'○'}  ${rp(f.tenetAddress,22)}  ${f.identity}</span>`,'info',true);
+    });
+    bl();
+    ln(`  Usage: switch <name>   e.g. switch BlackRock`,'dim');
+    bl();return;
+  }
+  const query=args[0].toLowerCase();
+  const match=Object.values(FI_PROFILES).find(f=>
+    f.tenetAddress.toLowerCase().includes(query)||
+    f.identity.toLowerCase().includes(query)
+  );
+  if(!match){
+    ln(`  Unknown FI: "${args[0]}".  Type 'switch' to see registered FIs.`,'error');return;
+  }
+  if(match.tenetAddress===S.fi.tenetAddress){
+    bl();ln(`  Already logged in as ${S.fi.identity}.`,'dim');bl();return;
+  }
+  // Switch FI profile
+  const prev=S.fi.identity;
+  S.fi=JSON.parse(JSON.stringify(match)); // deep copy
+  S.orders=[];
+  refreshVault();
+  document.getElementById('fi-addr').textContent=S.fi.tenetAddress;
+  bl();sep();
+  ln(`  FI SESSION SWITCHED`,'header');sep();bl();
+  ln(`  <span class="cd">Previous     </span>  <span class="cm">${prev}</span>`,'info',true);
+  ln(`  <span class="cd">Current      </span>  <span class="cb">${S.fi.identity}</span>`,'info',true);
+  ln(`  <span class="cd">Tenet address</span>  <span class="cw">${S.fi.tenetAddress}</span>`,'info',true);
+  ln(`  <span class="cd">Vault        </span>  <span class="cw">${S.fi.vault.id}</span>`,'info',true);
+  ln(`  <span class="cd">Balance      </span>  <span class="cb">${usd(S.fi.vault.balance)} USDC</span>`,'info',true);
+  bl();sep();bl();
+}
+const LP={
+  ETH:[
+    {lp:'Wintermute_SOL',chain:'SOL',avail:25000,px:0.99981},
+    {lp:'Galaxy_SOL',chain:'SOL',avail:18000,px:0.99989},
+    {lp:'Cumberland_SOL',chain:'SOL',avail:15000,px:0.99995},
+    {lp:'Amber_SOL',chain:'SOL',avail:8000,px:0.99962},
+    {lp:'Wintermute_ETH',chain:'ETH',avail:30000,px:0.99975},
+    {lp:'Wintermute_ARB',chain:'ARB',avail:12000,px:0.99988},
+  ],
+  SOL:[
+    {lp:'Wintermute_SOL',chain:'SOL',avail:500000,px:0.99985},
+    {lp:'Galaxy_SOL',chain:'SOL',avail:380000,px:0.99992},
+    {lp:'Cumberland_SOL',chain:'SOL',avail:280000,px:0.99988},
+    {lp:'Wintermute_ARB',chain:'ARB',avail:150000,px:0.99979},
+  ],
+  BTC:[
+    {lp:'Cumberland_ETH',chain:'ETH',avail:1200,px:0.99982},
+    {lp:'Wintermute_ETH',chain:'ETH',avail:800,px:0.99978},
+    {lp:'Galaxy_ARB',chain:'ARB',avail:600,px:0.99985},
+  ],
+  USDC:[
+    {lp:'Galaxy_ARB',chain:'ARB',avail:15000000,px:1.0},
+    {lp:'Galaxy_BASE',chain:'BASE',avail:12000000,px:1.0},
+    {lp:'Cumberland_POLYGON',chain:'POLYGON',avail:8000000,px:1.0},
+  ],
+  WBTC:[
+    {lp:'Wintermute_ETH',chain:'ETH',avail:950,px:0.99971},
+    {lp:'Cumberland_ARB',chain:'ARB',avail:620,px:0.99980},
+  ],
+};
+
+// ── SPOT PRICES ────────────────────────────────────────────────────
+const SPOT_BASE={ETH:3318.50,SOL:141.72,BTC:87432.00,USDC:1.00,WBTC:87180.00};
+function spot(a){const b=SPOT_BASE[a.toUpperCase()]??1;return b*(1+(Math.random()*.0018-.0009));}
+
+// ── UTILS ──────────────────────────────────────────────────────────
+const usd=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=(n,dp=4)=>n.toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const rp=(s,w)=>{s=String(s);return s.length>=w?s:s+' '.repeat(w-s.length);};
+const lp_=(s,w)=>{s=String(s);return s.length>=w?s:' '.repeat(w-s.length)+s;};
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const ts=()=>new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';
+function txHash(){const h='0123456789abcdef';let s='0x';for(let i=0;i<8;i++)s+=h[Math.floor(Math.random()*16)];s+='...';for(let i=0;i<4;i++)s+=h[Math.floor(Math.random()*16)];return s;}
+function nextOrdId(){return 'ORD_'+(++S.counter);}
+
+// ── OUTPUT ENGINE ──────────────────────────────────────────────────
+const $out=document.getElementById('output');
+const $vault=document.getElementById('vault-display');
+function refreshVault(){$vault.textContent='VAULT  '+usd(S.fi.vault.balance)+' USDC';}
+function ln(text='',cls='info',asHTML=false){
+  const el=document.createElement('span');el.className='ln '+cls;
+  if(asHTML)el.innerHTML=text;else el.textContent=text;
+  $out.appendChild(el);$out.scrollTop=$out.scrollHeight;return el;
+}
+const bl=()=>ln('','blank');
+const sep=()=>ln('─'.repeat(70),'sep');
+const sepD=()=>ln('═'.repeat(70),'sep');
+function echoCmd(cmd){bl();ln('tenet > '+cmd,'cmd');}
+
+// ── EXECUTION ENGINE ───────────────────────────────────────────────
+// amount is always USDC. assetQty is derived internally from spot price.
+// slipBps: max tolerated slippage in basis points. Default 50.
+function buildPlan(asset,assetQty,chain,slipBps){
+  const maxSlip=slipBps/10000;
+  const inv=(LP[asset.toUpperCase()]||[]).filter(l=>l.chain===chain.toUpperCase()&&l.avail>0&&(1-l.px)<=maxSlip);
+  if(!inv.length){
+    const anyExist=(LP[asset.toUpperCase()]||[]).filter(l=>l.chain===chain.toUpperCase()&&l.avail>0);
+    if(anyExist.length)return{ok:false,reason:'SLIPPAGE_EXCEEDED',msg:`No LP within ${slipBps}bps tolerance on ${chain.toUpperCase()}. Widen tolerance or reduce size.`};
+    return{ok:false,reason:'LP_LIQUIDITY_UNAVAILABLE',msg:`No LP inventory for ${asset.toUpperCase()} on ${chain.toUpperCase()}.`};
+  }
+  const sorted=[...inv].sort((a,b)=>a.px-b.px);
+  let rem=assetQty;const fills=[];
+  for(const l of sorted){
+    if(rem<=0.00001)break;
+    const f=Math.min(l.avail,rem);
+    fills.push({lp:l.lp,chain:l.chain,amount:f,px:l.px});rem-=f;
+  }
+  if(rem>0.0001)return{ok:false,reason:'LP_LIQUIDITY_UNAVAILABLE',msg:`Insufficient LP depth. Max fillable: ${num(assetQty-rem,4)} ${asset.toUpperCase()}.`};
+  return{ok:true,fills};
+}
+
+function calcCost(asset,fills,usdcAmount){
+  const assetSpot=spot(asset);
+  const assetQty=fills.reduce((s,f)=>s+f.amount,0);
+  const fee=usdcAmount*0.001;
+  const total=usdcAmount+fee;
+  const effPrice=usdcAmount/assetQty;
+  const effSlipBps=Math.round(Math.max(0,(assetSpot-effPrice)/assetSpot*10000));
+  return{usdcAmount,assetQty,fee,total,assetSpot,effPrice,effSlipBps};
+}
+
+// ── QUOTE DISPLAY ──────────────────────────────────────────────────
+function printQuote(intent,asset,usdcAmount,fills,cost,delivChain,slipBps){
+  const wallet=S.fi.wallets[delivChain.toUpperCase()]||`UnknownWallet_${delivChain}`;
+  const isSplit=fills.length>1;
+  const vaultOk=S.fi.vault.balance>=cost.total;
+  bl();sep();ln(`  ${intent.toUpperCase()} QUOTE`,'header');sep();bl();
+  const rows=[
+    ['Spend',           usd(usdcAmount)+' USDC  ←  from GoldmanSettlementVault'],
+    ['Receive',         num(cost.assetQty,6)+' '+asset.toUpperCase()+'  →  '+wallet],
+    ['Delivery chain',  delivChain.toUpperCase()],
+    ['Spot price',      usd(cost.assetSpot)+'  /  '+asset.toUpperCase()],
+    ['Effective price', usd(cost.effPrice)+'  /  '+asset.toUpperCase()],
+    ['Slip tolerance',  slipBps+' bps'],
+    ['Eff. slippage',   cost.effSlipBps+' bps'+(cost.effSlipBps>slipBps?'  ✗ EXCEEDED':'  ✓')],
+    ['Tenet fee',       usd(cost.fee)+' USDC  (10 bps)'],
+    ['Vault extraction',usd(cost.total)+' USDC  (spend + fee)'],
+    ['Vault balance',   usd(S.fi.vault.balance)+' USDC  '+(vaultOk?'✓':'✗ INSUFFICIENT')],
+  ];
+  for(const[k,v]of rows){
+    const isRcv=k==='Receive',isExt=k==='Vault extraction';
+    const isInsuff=k==='Vault balance'&&!vaultOk;
+    const isSlipWarn=k==='Eff. slippage'&&cost.effSlipBps>slipBps;
+    const cls=isRcv||isExt?'cb':isInsuff||isSlipWarn?'cr':'cw';
+    ln(`  <span class="cd">${rp(k,20)}</span>  <span class="${cls}">${v}</span>`,'info',true);
+  }
+  if(isSplit){
+    bl();ln(`  LP SPLIT  (${fills.length} providers)`,'dim');bl();
+    const tot=fills.reduce((s,f)=>s+f.amount,0);
+    for(const f of fills){
+      const pct=((f.amount/tot)*100).toFixed(1);
+      const fs=((1-f.px)*10000).toFixed(1);
+      ln(`  <span class="cm">${rp(f.lp,24)}</span>  <span class="cw">${rp(num(f.amount,4)+' '+asset.toUpperCase(),22)}</span>  <span class="cd">${rp(pct+'%',6)}  @ ${f.px}  (${fs}bps)</span>`,'info',true);
+    }
+  }else{
+    const f=fills[0];const fs=((1-f.px)*10000).toFixed(1);
+    ln(`  <span class="cd">${rp('LP assignment',20)}</span>  <span class="cw">${f.lp}</span>  <span class="cd">@ ${f.px}  (${fs}bps)</span>`,'info',true);
+  }
+  bl();
+  if(!vaultOk){ln(`  INSUFFICIENT_FI_FUNDS — top up ${usd(cost.total-S.fi.vault.balance)} USDC required`,'error');bl();sep();bl();return false;}
+  sep();bl();return true;
+}
+
+// ── ORDER LIFECYCLE ────────────────────────────────────────────────
+async function runLifecycle(order){
+  const isSplit=order.fills.length>1;
+  bl();sep();ln(`  ORDER ${order.id}`,'header');sep();bl();
+  const block=document.createElement('div');block.className='order-block';
+  $out.appendChild(block);$out.scrollTop=$out.scrollHeight;
+  const STATES=['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED'];
+  const LABELS={
+    LIVE:'validating vault · LP selection confirmed',
+    DELIVERING:isSplit?'pooling assets in aggregation vault':'transfer from LP vault in progress',
+    AWAITING_SETTLEMENT:'FI delivery confirmed · routing LP payout',
+    COMPLETED:'settled',
+  };
+  const DELAYS={LIVE:950,DELIVERING:1500,AWAITING_SETTLEMENT:750};
+  const render=cur=>{
+    let h='';
+    for(const s of STATES){
+      const past=STATES.indexOf(s)<STATES.indexOf(cur),current=s===cur;
+      const dot=past?'●':current?'◉':'○';
+      const cls=past?'st-done':current?'st-active':'st-pending';
+      h+=`<span class="ln ${cls}">  [${dot}] ${rp(s,26)} <span class="cd">${past||current?LABELS[s]:''}</span></span>\n`;
+    }
+    block.innerHTML=h;$out.scrollTop=$out.scrollHeight;
+  };
+  for(let i=0;i<STATES.length;i++){
+    render(STATES[i]);order.status=STATES[i];
+    if(STATES[i]==='DELIVERING'){S.fi.vault.balance-=order.cost.total;refreshVault();}
+    if(i<STATES.length-1)await wait(DELAYS[STATES[i]]);
+  }
+  order.execTx=txHash();order.settlTx=txHash();
+  bl();
+  const dw=S.fi.wallets[order.delivChain]||'UnknownWallet';
+  ln(`  ✓  ${num(order.cost.assetQty,6)} ${order.asset}  →  ${dw}`,'success');
+  const sm=order.fills.length>1?`CCTP + internal netting  (${order.fills.length} LPs)`:`CCTP  →  ${order.fills[0].lp}`;
+  ln(`  ✓  Settlement routed via ${sm}`,'success');bl();
+  const det=[['execution_tx',order.execTx],['settlement_tx',order.settlTx],['fee_collected',usd(order.cost.fee)+' USDC'],['vault_balance',usd(S.fi.vault.balance)+' USDC'],['completed_at',ts()]];
+  for(const[k,v]of det)ln(`  <span class="cd">${rp(k,18)}</span> <span class="cm">${v}</span>`,'info',true);
+  bl();sep();bl();
+}
+
+// ── BUY ───────────────────────────────────────────────────────────
+// buy <asset> <usdc_amount> <settle_asset> <delivery_chain> <settle_chain> [slip_bps]
+// amount = USDC to spend. Asset quantity derived from spot price.
+async function cmdBuy(args,silent=false){
+  if(args.length<5){
+    ln(`  Usage: buy <asset> <usdc_amount> <settle_asset> <deliv_chain> <settle_chain> [slip_bps]`,'error');
+    ln(`  Example: buy ETH 500000 USDC SOL ETH`,'dim');
+    ln(`  Example: buy ETH 500000 USDC SOL ETH 25    ← 25bps slippage tolerance`,'dim');
+    return null;
+  }
+  const[asset,amtS,,delivChain,settlChain]=args;
+  const slipBps=parseInt(args[5])||50;
+  const usdcAmount=parseFloat(amtS);
+  if(isNaN(usdcAmount)||usdcAmount<=0){ln(`  Error: invalid amount "${amtS}"`,'error');return null;}
+  if(!S.fi.wallets[delivChain.toUpperCase()]){
+    ln(`  Error: no registered wallet for chain "${delivChain.toUpperCase()}"`,'error');
+    ln(`  Supported: ${Object.keys(S.fi.wallets).join(' · ')}`,'dim');return null;
+  }
+  const assetQty=usdcAmount/spot(asset);
+  const plan=buildPlan(asset,assetQty,delivChain,slipBps);
+  if(!plan.ok){ln(`  ${plan.reason}: ${plan.msg}`,'error');return null;}
+  const cost=calcCost(asset,plan.fills,usdcAmount);
+  if(silent)return{intent:'buy',asset,usdcAmount,fills:plan.fills,cost,delivChain:delivChain.toUpperCase(),settlChain:settlChain.toUpperCase(),slipBps};
+  const ok=printQuote('buy',asset,usdcAmount,plan.fills,cost,delivChain,slipBps);
+  if(!ok)return null;
+  return{intent:'buy',asset,usdcAmount,fills:plan.fills,cost,delivChain:delivChain.toUpperCase(),settlChain:settlChain.toUpperCase(),slipBps};
+}
+
+// ── SELL ──────────────────────────────────────────────────────────
+// sell <asset> <usdc_amount> <settle_asset> <delivery_chain> <settle_chain> [slip_bps]
+// amount = USDC notional value of the asset being sold.
+async function cmdSell(args,silent=false){
+  if(args.length<5){
+    ln(`  Usage: sell <asset> <usdc_amount> <settle_asset> <deliv_chain> <settle_chain> [slip_bps]`,'error');
+    ln(`  Example: sell ETH 500000 USDC ETH ETH`,'dim');return null;
+  }
+  const[asset,amtS,,delivChain,settlChain]=args;
+  const slipBps=parseInt(args[5])||50;
+  const usdcAmount=parseFloat(amtS);
+  if(isNaN(usdcAmount)||usdcAmount<=0){ln(`  Error: invalid amount`,'error');return null;}
+  const assetQty=usdcAmount/spot(asset);
+  const plan=buildPlan(asset,assetQty,delivChain,slipBps);
+  if(!plan.ok){ln(`  ${plan.reason}: ${plan.msg}`,'error');return null;}
+  const cost=calcCost(asset,plan.fills,usdcAmount);
+  const net=usdcAmount-cost.fee;
+  if(silent)return{intent:'sell',asset,usdcAmount,fills:plan.fills,cost,delivChain:delivChain.toUpperCase(),settlChain:settlChain.toUpperCase(),net,slipBps};
+  bl();sep();ln(`  SELL QUOTE`,'header');sep();bl();
+  const rows=[
+    ['Sell',            num(cost.assetQty,6)+' '+asset.toUpperCase()+'  (≈ '+usd(usdcAmount)+' USDC at spot)'],
+    ['Spot price',      usd(cost.assetSpot)+'  /  '+asset.toUpperCase()],
+    ['Effective price', usd(cost.effPrice)+'  /  '+asset.toUpperCase()],
+    ['Slip tolerance',  slipBps+' bps'],
+    ['Eff. slippage',   cost.effSlipBps+' bps'+(cost.effSlipBps>slipBps?'  ✗ EXCEEDED':'  ✓')],
+    ['Tenet fee',       usd(cost.fee)+' USDC  (10 bps)'],
+    ['Net proceeds',    usd(net)+' USDC  →  GoldmanSettlementVault'],
+  ];
+  for(const[k,v]of rows){
+    const cls=k==='Net proceeds'?'cb':k==='Eff. slippage'&&cost.effSlipBps>slipBps?'cr':'cw';
+    ln(`  <span class="cd">${rp(k,20)}</span>  <span class="${cls}">${v}</span>`,'info',true);
+  }
+  bl();sep();bl();
+  return{intent:'sell',asset,usdcAmount,fills:plan.fills,cost,delivChain:delivChain.toUpperCase(),settlChain:settlChain.toUpperCase(),net,slipBps};
+}
+
+// ── SWAP ──────────────────────────────────────────────────────────
+// swap <asset> <usdc_amount> <dest_asset> <source_chain> <delivery_chain> [slip_bps]
+// amount = USDC notional of the source asset being exchanged.
+async function cmdSwap(args){
+  if(args.length<5){
+    ln(`  Usage: swap <asset> <usdc_amount> <dest_asset> <src_chain> <deliv_chain> [slip_bps]`,'error');
+    ln(`  Example: swap ETH 500000 SOL ETH SOL`,'dim');return null;
+  }
+  const[asset,amtS,destAsset,srcChain,delivChain]=args;
+  const slipBps=parseInt(args[5])||50;
+  const usdcAmount=parseFloat(amtS);
+  if(isNaN(usdcAmount)||usdcAmount<=0){ln(`  Error: invalid amount`,'error');return null;}
+  const srcSpot=spot(asset),dstSpot=spot(destAsset);
+  const srcQty=usdcAmount/srcSpot;
+  const destAmt=(usdcAmount/dstSpot)*(1-slipBps/10000);
+  const fee=usdcAmount*0.001;
+  bl();sep();ln(`  SWAP QUOTE`,'header');sep();bl();
+  const rows=[
+    ['Sell',           num(srcQty,6)+' '+asset.toUpperCase()+'  (≈ '+usd(usdcAmount)+' USDC)'],
+    ['Receive',        num(destAmt,6)+' '+destAsset.toUpperCase()+'  on '+delivChain.toUpperCase()],
+    ['Rate',           `1 ${asset.toUpperCase()} = ${num(srcSpot/dstSpot,6)} ${destAsset.toUpperCase()}`],
+    ['Slip tolerance', slipBps+' bps'],
+    ['Tenet fee',      usd(fee)+' USDC  (10 bps of notional)'],
+    ['Route',          `${srcChain.toUpperCase()} → Tenet → ${delivChain.toUpperCase()}`],
+    ['Settlement',     'CCTP  (USDC leg)  ·  Everclear  (non-USDC leg)'],
+  ];
+  for(const[k,v]of rows)ln(`  <span class="cd">${rp(k,20)}</span>  <span class="${k==='Receive'?'cb':'cw'}">${v}</span>`,'info',true);
+  bl();sep();bl();
+  return{
+    intent:'swap',asset,usdcAmount,destAsset,srcChain:srcChain.toUpperCase(),
+    fills:[{lp:`Wintermute_${delivChain.toUpperCase()}`,chain:delivChain.toUpperCase(),amount:destAmt,px:1-slipBps/10000}],
+    cost:{usdcAmount,assetQty:srcQty,fee,total:usdcAmount+fee,assetSpot:srcSpot,effPrice:srcSpot,effSlipBps:slipBps},
+    delivChain:delivChain.toUpperCase(),settlChain:srcChain.toUpperCase(),slipBps,
+  };
+}
+
+// ── CONVERT ───────────────────────────────────────────────────────
+async function cmdConvert(args){
+  if(args.length<2){ln(`  Usage: convert <amount> <currency>`,'error');ln(`  Example: convert 1000000 USD`,'dim');return null;}
+  const[amtS,ccy]=args;const amount=parseFloat(amtS);const C=ccy.toUpperCase();
+  if(isNaN(amount)||amount<=0){ln(`  Error: invalid amount`,'error');return null;}
+  const FX={USD:1.0,GBP:1.265,EUR:1.082,AUD:0.638,CHF:1.131,JPY:0.00657,SGD:0.741,AED:0.272};
+  if(!FX[C]){ln(`  Error: unsupported currency "${C}"`,'error');ln(`  Supported: ${Object.keys(FX).join(' · ')}`,'dim');return null;}
+  const usdAmt=amount*FX[C],circleFee=usdAmt*0.001,tenetFee=25,netUsdc=usdAmt-circleFee-tenetFee;
+  bl();sep();ln(`  CONVERT QUOTE`,'header');sep();bl();
+  const rows=[['Fiat amount',amount.toLocaleString()+' '+C],['USD equivalent',usd(usdAmt)],['Circle fee',usd(circleFee)+'  (0.10%)'],['Tenet fee',usd(tenetFee)+'  (flat coordination)'],['USDC received',usd(netUsdc)+' USDC  →  GoldmanSettlementVault'],['Provider','Circle  (CCTP mint on ETH mainnet)']];
+  for(const[k,v]of rows)ln(`  <span class="cd">${rp(k,20)}</span>  <span class="${k==='USDC received'?'cb':'cw'}">${v}</span>`,'info',true);
+  bl();sep();bl();
+  return{intent:'convert',amount,ccy:C,usdAmt,circleFee,tenetFee,netUsdc};
+}
+
+// ── QUOTE ─────────────────────────────────────────────────────────
+function cmdQuote(args){
+  if(args.length<1){ln(`  Usage: quote <asset> [usdc_amount] [chain]`,'error');ln(`  Example: quote ETH 500000 SOL`,'dim');return;}
+  const[asset,amtS='100000',chain='ETH']=args;
+  const usdcAmount=parseFloat(amtS)||100000;
+  const assetSpot=spot(asset),assetQty=usdcAmount/assetSpot;
+  const assetUp=asset.toUpperCase(),chainUp=chain.toUpperCase();
+  bl();sep();ln(`  MARKET QUOTE  —  ${assetUp}`,'header');sep();bl();
+  [['Spend',usd(usdcAmount)+' USDC'],['Receive',num(assetQty,6)+' '+assetUp+'  (at spot)'],['Spot',usd(assetSpot)+'  /  '+assetUp],['Source','CryptoCompare  (30s cache)'],['Timestamp',ts()]]
+    .forEach(([k,v])=>ln(`  <span class="cd">${rp(k,14)}</span>  <span class="cw">${v}</span>`,'info',true));
+  bl();ln(`  LP DEPTH  (${chainUp} chain)`,'dim');bl();
+  const inv=(LP[assetUp]||[]).filter(l=>l.chain===chainUp);
+  if(!inv.length){ln(`  No LP depth on ${chainUp} chain.`,'error');}
+  else{
+    let td=0;
+    for(const l of inv){td+=l.avail;ln(`  <span class="cd">${rp(l.lp,24)}</span>  <span class="cw">${rp(num(l.avail,0)+' '+assetUp,22)}</span>  <span class="cd">@ ${l.px}</span>`,'info',true);}
+    bl();ln(`  <span class="cd">${rp('Total depth',24)}</span>  <span class="cb">${num(td,0)+' '+assetUp}</span>  <span class="cd">(${usd(td*assetSpot)} USDC notional)</span>`,'info',true);
+  }
+  bl();sep();bl();
+}
+
+// ── VAULT ─────────────────────────────────────────────────────────
+function cmdVault(){
+  bl();sep();ln(`  FI SETTLEMENT VAULT`,'header');sep();bl();
+  [['FI identity',S.fi.identity],['Tenet address',S.fi.tenetAddress],['Vault ID',S.fi.vault.id],['Balance',usd(S.fi.vault.balance)+' USDC'],['Co-signers',S.fi.identity+'  +  Tenet  (2-of-2 multisig)'],['Custodian','Fireblocks  ·  MPC key management  ·  insured'],['Jurisdiction','US  ·  KYB verified  ·  AML cleared'],['Status','● ACTIVE']]
+    .forEach(([k,v])=>ln(`  <span class="cd">${rp(k,18)}</span>  <span class="${k==='Balance'?'cb':k==='Status'?'cg':'cw'}">${v}</span>`,'info',true));
+  bl();ln(`  DESTINATION WALLETS`,'dim');bl();
+  Object.entries(S.fi.wallets).forEach(([c,w])=>ln(`  <span class="cd">${rp(c,10)}</span>  <span class="cw">${w}</span>`,'info',true));
+  bl();sep();bl();
+}
+
+// ── ORDERS ────────────────────────────────────────────────────────
+function cmdOrders(){
+  if(!S.orders.length){bl();ln(`  No orders this session.`,'dim');bl();return;}
+  bl();sep();ln(`  ORDER HISTORY  (${S.orders.length} order${S.orders.length>1?'s':''})`,'header');sep();bl();
+  ln(`  <span class="cd">${rp('ORDER ID',16)}  ${rp('INTENT',6)}  ${rp('ASSET',6)}  ${rp('USDC AMOUNT',16)}  ${rp('ASSET QTY',16)}  ${rp('STATUS',22)}  VAULT EXTRACTION</span>`,'info',true);
+  bl();
+  for(const o of S.orders){
+    const cls=o.status==='COMPLETED'?'cb':o.status==='FAILED'?'cr':'co';
+    const aqStr=o.cost?.assetQty?num(o.cost.assetQty,4)+' '+o.asset.toUpperCase():'—';
+    ln(`  <span class="cd">${rp(o.id,16)}</span>  <span class="cm">${rp(o.intent.toUpperCase(),6)}</span>  ${rp(o.asset.toUpperCase(),6)}  <span class="cw">${rp(usd(o.usdcAmount||0),16)}</span>  <span class="cd">${rp(aqStr,16)}</span>  <span class="${cls}">${rp(o.status,22)}</span>  ${usd(o.cost?.total||0)}`,'info',true);
+  }
+  bl();sep();bl();
+}
+
+// ── TOPUP ─────────────────────────────────────────────────────────
+function cmdTopup(args){
+  const amount=parseFloat(args[0]);
+  if(!amount||amount<=0){ln(`  Usage: topup <amount>  —  add USDC to vault (demo)`,'error');return;}
+  S.fi.vault.balance+=amount;refreshVault();
+  bl();ln(`  ✓  Vault credited: +${usd(amount)} USDC`,'success');ln(`  New balance: ${usd(S.fi.vault.balance)} USDC`,'info');bl();
+}
+
+// ── HELP ──────────────────────────────────────────────────────────
+function cmdHelp(){
+  bl();sep();ln(`  TENET SYSTEMS  —  Command Reference`,'header');sep();bl();
+  [
+    ['buy',     '<asset> <usdc_amt> <settle_asset> <deliv_chain> <settle_chain> [slip_bps]','Spend X USDC, receive asset'],
+    ['sell',    '<asset> <usdc_amt> <settle_asset> <deliv_chain> <settle_chain> [slip_bps]','Sell asset worth X USDC'],
+    ['swap',    '<asset> <usdc_amt> <dest_asset> <src_chain> <deliv_chain> [slip_bps]',     'Cross-chain swap (USDC-denominated)'],
+    ['convert', '<amount> <currency>',                                                       'Fiat → USDC via Circle onramp'],
+    ['schedule','',                                                                          'Batch schedule mode  (Mode 2)'],
+    ['quote',   '<asset> [usdc_amt] [chain]',                                               'Non-binding quote + LP depth'],
+    ['vault',   '',                                                                          'FI settlement vault status'],
+    ['orders',  '',                                                                          'Order history this session'],
+    ['switch',   '<fi name or address>',                                                      'Switch active FI session'],
+    ['topup',   '<amount>',                                                                  'Add USDC to vault  (demo only)'],
+    ['clear',   '',                                                                          'Clear terminal'],
+    ['help',    '',                                                                          'This reference'],
+  ].forEach(([c,s,d])=>ln(`  <span class="cb">${rp(c,12)}</span>  <span class="cd">${rp(s,56)}</span>  <span class="cm">${d}</span>`,'info',true));
+  bl();
+  ln(`  AMOUNT IS ALWAYS USDC`,'dim');bl();
+  ln(`  The amount field is how much USDC you want to spend (buy / swap),`,'dim');
+  ln(`  or the USDC notional of what you are selling (sell).`,'dim');
+  ln(`  Tenet derives asset quantity from spot price internally.`,'dim');
+  ln(`  "buy ETH 500000 ..."  =  spend $500,000 USDC and receive ETH.`,'dim');
+  bl();
+  ln(`  SLIPPAGE  [slip_bps]  —  optional, default 50 bps`,'dim');bl();
+  ln(`  Filters out any LP whose fill price exceeds your tolerance.`,'dim');
+  ln(`  Tighten for best execution. Widen for large or illiquid orders.`,'dim');
+  bl();
+  ln(`  INLINE SCHEDULE  (Mode 1)`,'dim');bl();
+  ln(`  Append .schedule to any intent: buy ETH 500000 USDC SOL ETH .schedule`,'dim');
+  bl();
+  ln(`  EXAMPLES`,'dim');bl();
+  [
+    'buy ETH 500000 USDC SOL ETH               ← spend $500k USDC, receive ETH on SOL',
+    'buy ETH 5000000 USDC SOL ETH              ← triggers multi-LP split',
+    'buy ETH 500000 USDC SOL ETH 25            ← 25bps slippage tolerance',
+    'sell SOL 250000 USDC SOL SOL              ← sell $250k notional of SOL',
+    'swap ETH 100000 SOL ETH SOL               ← swap $100k ETH value → SOL',
+    'convert 1000000 USD',
+    'quote ETH 500000 SOL',
+    'buy ETH 500000 USDC SOL ETH .schedule',
+    'schedule                                  ← open batch schedule mode',
+  ].forEach(e=>ln(`  <span class="cd">&gt;</span>  <span class="cm">${e}</span>`,'info',true));
+  bl();
+  ln(`  CHAINS   ETH · SOL · ARB · BASE · POLYGON`,'dim');
+  ln(`  ASSETS   ETH · SOL · BTC · USDC · WBTC`,'dim');
+  bl();sep();bl();
+}
+
+// ── SCHEDULE MODE ─────────────────────────────────────────────────
+function enterBatchSchedule(){
+  Object.assign(S.sched,{active:true,mode:'batch',step:'date',date:null,time:null,onFail:null,intents:[],single:null});
+  bl();sep();ln(`  SCHEDULE  —  Batch Execution Mode  (Mode 2)`,'header');sep();bl();
+  ln(`  Enter date, time, failure behaviour, then intents.`,'dim');
+  ln(`  Type 'done' to commit · 'cancel' to abort.`,'dim');bl();
+  ln(`  → Date  (YYYY-MM-DD) :`,'bright');bl();setPromptLabel('  → date :');
+}
+
+function enterSingleSchedule(type,args){
+  Object.assign(S.sched,{active:true,mode:'single',step:'single_date',date:null,time:null,onFail:'continue',intents:[],single:{type,args}});
+  bl();sep();ln(`  SCHEDULE  —  Single Intent Mode  (Mode 1)`,'header');sep();bl();
+  ln(`  Intent: <span class="cw">${type} ${args.join(' ')}</span>`,'info',true);bl();
+  ln(`  → Date  (YYYY-MM-DD) :`,'bright');bl();setPromptLabel('  → date :');
+}
+
+async function handleScheduleInput(raw){
+  const sm=S.sched,inp=raw.trim();
+  if(inp.toLowerCase()==='cancel'){Object.assign(sm,{active:false,step:null});setPromptLabel('tenet >');bl();ln(`  Schedule cancelled.`,'warn');bl();return;}
+  if(sm.mode==='single'){
+    if(sm.step==='single_date'){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(inp)){ln(`  Invalid format. Use YYYY-MM-DD.`,'error');ln(`  → Date  (YYYY-MM-DD) :`,'bright');return;}
+      sm.date=inp;sm.step='single_time';bl();ln(`  → Time  (HH:MM UTC) :`,'bright');bl();setPromptLabel('  → time :');return;
+    }
+    if(sm.step==='single_time'){
+      if(!/^\d{2}:\d{2}$/.test(inp)){ln(`  Invalid format. Use HH:MM.`,'error');ln(`  → Time  (HH:MM UTC) :`,'bright');return;}
+      sm.time=inp;Object.assign(sm,{active:false,step:null});setPromptLabel('tenet >');
+      const sid='SCHED_'+Date.now();
+      bl();sep();ln(`  INTENT SCHEDULED`,'header');sep();bl();
+      ln(`  <span class="cd">Schedule ID</span>  ${sid}`,'info',true);
+      ln(`  <span class="cd">Execute at </span>  ${sm.date} ${sm.time} UTC`,'info',true);
+      ln(`  <span class="cd">Intent     </span>  <span class="cw">${sm.single.type} ${sm.single.args.join(' ')}</span>`,'info',true);
+      ln(`  <span class="cd">Status     </span>  <span class="cg">SCHEDULED</span>`,'info',true);bl();
+      const execDT=new Date(`${sm.date}T${sm.time}:00Z`),msLeft=execDT-Date.now();
+      const snap=Object.assign({},sm.single);
+      if(msLeft<=5000){ln(`  Executing immediately.`,'warn');bl();await dispatchIntent(snap.type,snap.args,true);}
+      else{ln(`  Executes in ${Math.ceil(msLeft/1000)}s.`,'dim');bl();sep();bl();setTimeout(async()=>{bl();ln(`  SCHEDULED INTENT EXECUTING  ${sid}`,'bright');bl();await dispatchIntent(snap.type,snap.args,true);},msLeft);}
+      return;
+    }
+  }
+  if(sm.mode==='batch'){
+    if(sm.step==='date'){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(inp)){ln(`  Invalid format. Use YYYY-MM-DD.`,'error');ln(`  → Date  (YYYY-MM-DD) :`,'bright');return;}
+      sm.date=inp;sm.step='time';bl();ln(`  → Time  (HH:MM UTC) :`,'bright');bl();setPromptLabel('  → time :');return;
+    }
+    if(sm.step==='time'){
+      if(!/^\d{2}:\d{2}$/.test(inp)){ln(`  Invalid format. Use HH:MM.`,'error');ln(`  → Time  (HH:MM UTC) :`,'bright');return;}
+      sm.time=inp;sm.step='failure';bl();ln(`  → On failure  [continue / halt] :`,'bright');bl();setPromptLabel('  → on-failure :');return;
+    }
+    if(sm.step==='failure'){
+      const v=inp.toLowerCase();
+      if(!['continue','halt','c','h'].includes(v)){ln(`  Enter 'continue' or 'halt'.`,'error');return;}
+      sm.onFail=v.startsWith('c')?'continue':'halt';sm.step='intents';
+      bl();ln(`  ✓  ${sm.date} ${sm.time} UTC  ·  on failure: ${sm.onFail}`,'success');
+      bl();ln(`  Enter intents (buy · sell · swap · convert). Type 'done' when complete.`,'dim');
+      bl();ln(`  → Intent 1 :`,'bright');bl();setPromptLabel(`  → intent 1 :`);return;
+    }
+    if(sm.step==='intents'){
+      if(inp.toLowerCase()==='done'){if(!sm.intents.length){ln(`  Add at least one intent, or type 'cancel'.`,'error');return;}await commitBatch();return;}
+      const parts=inp.split(/\s+/),iType=parts[0].toLowerCase();
+      if(!['buy','sell','swap','convert'].includes(iType)){ln(`  Unknown intent "${iType}".`,'error');return;}
+      sm.intents.push({raw:inp,type:iType,args:parts.slice(1)});
+      bl();ln(`  ✓  Intent ${sm.intents.length} queued: <span class="cw">${inp}</span>`,'success',true);
+      bl();ln(`  → Intent ${sm.intents.length+1}  (or 'done' to commit) :`,'bright');bl();
+      setPromptLabel(`  → intent ${sm.intents.length+1} :`);return;
+    }
+  }
+}
+
+async function commitBatch(){
+  const sm=S.sched;
+  const snap={date:sm.date,time:sm.time,onFail:sm.onFail,intents:[...sm.intents]};
+  Object.assign(sm,{active:false,step:null,intents:[]});setPromptLabel('tenet >');
+  const bid='BATCH_'+Date.now();
+  bl();sep();ln(`  BATCH SCHEDULED`,'header');sep();bl();
+  ln(`  <span class="cd">Batch ID    </span>  ${bid}`,'info',true);
+  ln(`  <span class="cd">Execute at  </span>  ${snap.date} ${snap.time} UTC`,'info',true);
+  ln(`  <span class="cd">On failure  </span>  ${snap.onFail}`,'info',true);
+  ln(`  <span class="cd">Intents     </span>  ${snap.intents.length}`,'info',true);
+  bl();snap.intents.forEach((i,n)=>ln(`  <span class="cd">${lp_(n+1,2)}.</span>  <span class="cw">${i.raw}</span>`,'info',true));
+  bl();ln(`  <span class="cg">Status: SCHEDULED</span>`,'info',true);bl();
+  const execDT=new Date(`${snap.date}T${snap.time}:00Z`),msLeft=execDT-Date.now();
+  if(msLeft<=5000){ln(`  Executing batch immediately.`,'warn');bl();await runBatch(snap,bid);}
+  else{ln(`  Batch executes in ${Math.ceil(msLeft/1000)}s.`,'dim');bl();sep();bl();setTimeout(()=>runBatch(snap,bid),msLeft);}
+}
+
+async function runBatch(snap,bid){
+  bl();sepD();ln(`  BATCH EXECUTING  ${bid}`,'header');sepD();bl();
+  for(let i=0;i<snap.intents.length;i++){
+    const intent=snap.intents[i];
+    ln(`  [${i+1}/${snap.intents.length}]  <span class="cb">${intent.raw}</span>`,'info',true);
+    try{await dispatchIntent(intent.type,intent.args,true);}
+    catch(e){ln(`  ERROR on intent ${i+1}: ${e.message}`,'error');if(snap.onFail==='halt'){ln(`  Batch halted.`,'error');return;}}
+    await wait(200);
+  }
+  bl();ln(`  ✓  Batch complete  ·  ${snap.intents.length} intents processed`,'success');bl();sepD();bl();
+}
+
+async function dispatchIntent(type,args,autoConfirm=false){
+  let data=null;
+  switch(type){
+    case 'buy':    data=await cmdBuy(args,autoConfirm);break;
+    case 'sell':   data=await cmdSell(args,autoConfirm);break;
+    case 'swap':   data=await cmdSwap(args);break;
+    case 'convert':data=await cmdConvert(args);break;
+    default:ln(`  Unknown intent type "${type}"`,'error');return;
+  }
+  if(!data)return;
+  if(autoConfirm){await executeIntent(data);return;}
+  S.confirm={label:type,fn:async()=>executeIntent(data)};
+  ln(`  Confirm execution?  <span class="cd">[y / n]</span>`,'bright',true);bl();setPromptLabel('  confirm >');
+}
+
+async function executeIntent(data){
+  // ── CONVERT — always handled locally (Circle integration) ─────
+  if(data.intent==='convert'){
+    bl();ln(`  Submitting Circle instruction<span class="ldots"></span>`,'info',true);
+    await wait(700);ln(`  Circle instruction submitted.  Awaiting USDC mint.`,'dim');
+    await wait(1400);ln(`  USDC minted on ETH mainnet.  Routing to vault.`,'dim');
+    await wait(600);S.fi.vault.balance+=data.netUsdc;refreshVault();
+    bl();ln(`  ✓  ${usd(data.netUsdc)} USDC  →  GoldmanSettlementVault`,'success');bl();
+    ln(`  <span class="cd">conversion_ref</span>  ${txHash()}`,'info',true);
+    ln(`  <span class="cd">vault_balance </span>  ${usd(S.fi.vault.balance)} USDC`,'info',true);
+    bl();sep();bl();return;
+  }
+
+  // ── SERVER MODE — route intent through WebSocket to real engines ─
+  if(_wsReady){
+    const orderId = nextOrdId();
+    const intent  = {
+      tenetAddress: S.fi.tenetAddress,
+      asset:        data.asset,
+      usdcAmount:   data.usdcAmount,
+      delivChain:   data.delivChain,
+      settlChain:   data.settlChain || 'ETH',
+      settlAsset:   'USDC',
+      slipBps:      data.slipBps || 50,
+      intent:       data.intent,
+    };
+
+    // Draw the lifecycle block — server will drive its states
+    bl(); sep(); ln(`  ORDER ${orderId}  ·  ENGINE`, 'header'); sep(); bl();
+    const blockEl = document.createElement('div');
+    blockEl.className = 'order-block';
+    $out.appendChild(blockEl);
+    $out.scrollTop = $out.scrollHeight;
+
+    // Render initial PENDING state
+    let h = '';
+    for(const s of ORDER_STATES){
+      h+=`<span class="ln st-pending">  [○] ${rp(s,26)} </span>\n`;
+    }
+    blockEl.innerHTML = h;
+
+    // Register this order for server-driven updates
+    _liveBlocks[orderId] = { blockEl, lastState:'PENDING' };
+    S.orders.push({ id:orderId, status:'PENDING', intent:data.intent, asset:data.asset, usdcAmount:data.usdcAmount });
+
+    // Send to server — server will broadcast transitions back
+    // We pass orderId hint so server can match responses; server generates its own ID
+    // The first order:transition broadcast for this FI's new order updates the block
+    wsSend({ type:'intent:submit', data:{ ...intent, _clientOrderId:orderId } });
+
+    // Map server-assigned orderId back to our block on acceptance
+    // Server responds with intent:accepted { orderId } — we remap the block
+    const acceptTimeout = setTimeout(()=>{
+      if(_liveBlocks[orderId]){
+        ln(`  Engine timeout — no response from server`, 'error');
+        delete _liveBlocks[orderId];
+      }
+    }, 30000);
+
+    // Wait for intent:accepted to get the real server orderId
+    // We listen in wsHandleMessage which resolves _pendingOrderCallbacks
+    // Register callback keyed by the server's next orderId (sequential)
+    // Simpler: we hook the next intent:accepted message
+    _nextAcceptedCallback = (serverOrderId) => {
+      clearTimeout(acceptTimeout);
+      // Remap block from client orderId to server orderId
+      _liveBlocks[serverOrderId] = _liveBlocks[orderId];
+      delete _liveBlocks[orderId];
+    };
+    return;
+  }
+
+  // ── STANDALONE MODE — mock engines (server not running) ───────
+  if(data.intent==='sell'){
+    const order={id:nextOrdId(),status:'LIVE',intent:'sell',asset:data.asset,usdcAmount:data.usdcAmount,fills:data.fills,cost:data.cost,delivChain:data.delivChain,settlChain:data.settlChain,execTx:null,settlTx:null};
+    S.orders.push(order);await runLifecycle(order);
+    S.fi.vault.balance+=(data.usdcAmount-data.cost.fee);refreshVault();return;
+  }
+  const order={id:nextOrdId(),status:'LIVE',intent:data.intent,asset:data.asset,usdcAmount:data.usdcAmount,fills:data.fills,cost:data.cost,delivChain:data.delivChain,settlChain:data.settlChain,execTx:null,settlTx:null};
+  S.orders.push(order);await runLifecycle(order);
+}
+
+// ── INPUT HANDLER ─────────────────────────────────────────────────
+async function handleInput(raw){
+  const inp=raw.trim();if(!inp)return;
+  S.history.unshift(inp);if(S.history.length>120)S.history.pop();S.histIdx=-1;
+  if(!S.sched.active&&!S.confirm)echoCmd(inp);
+  else{bl();ln(`  > ${inp}`,'dim');}
+  if(S.confirm){
+    const c=S.confirm;S.confirm=null;setPromptLabel('tenet >');
+    if(['y','yes'].includes(inp.toLowerCase()))await c.fn();
+    else{bl();ln(`  Order cancelled.`,'warn');bl();}return;
+  }
+  if(S.sched.active){await handleScheduleInput(inp);return;}
+  if(inp.includes('.schedule')){
+    const cleaned=inp.replace(/\.schedule/g,'').trim();
+    const parts=cleaned.split(/\s+/),type=parts[0].toLowerCase();
+    if(!['buy','sell','swap','convert'].includes(type)){ln(`  Unknown intent type for .schedule: "${type}"`,'error');return;}
+    enterSingleSchedule(type,parts.slice(1));return;
+  }
+  const parts=inp.split(/\s+/),cmd=parts[0].toLowerCase(),args=parts.slice(1);
+  switch(cmd){
+    case 'buy':     await dispatchIntent('buy',args);break;
+    case 'sell':    await dispatchIntent('sell',args);break;
+    case 'swap':    await dispatchIntent('swap',args);break;
+    case 'convert': await dispatchIntent('convert',args);break;
+    case 'schedule':enterBatchSchedule();break;
+    case 'quote':   cmdQuote(args);break;
+    case 'vault':   cmdVault();break;
+    case 'orders':  cmdOrders();break;
+    case 'switch':  cmdSwitch(args);break;
+    case 'topup':   cmdTopup(args);break;
+    case 'help':    cmdHelp();break;
+    case 'clear':   $out.innerHTML='';bl();ln(`  Terminal cleared.`,'dim');bl();break;
+    case 'exit':case 'quit':bl();ln(`  Session terminated.`,'dim');bl();break;
+    default:bl();ln(`  Unknown command: "${cmd}".  Type 'help' for reference.`,'error');bl();
+  }
+}
+
+function setPromptLabel(t){document.getElementById('prompt-lbl').textContent=t;}
+
+// ── EVENT LISTENERS ───────────────────────────────────────────────
+const $inp=document.getElementById('cmd-input');
+$inp.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const v=$inp.value;$inp.value='';handleInput(v);return;}
+  if(e.key==='ArrowUp'){e.preventDefault();if(S.histIdx<S.history.length-1){S.histIdx++;$inp.value=S.history[S.histIdx]||'';}return;}
+  if(e.key==='ArrowDown'){e.preventDefault();if(S.histIdx>0){S.histIdx--;$inp.value=S.history[S.histIdx]||'';}else{S.histIdx=-1;$inp.value='';}return;}
+  if(e.key==='Tab'){e.preventDefault();const v=$inp.value.toLowerCase();const c=['buy','sell','swap','convert','schedule','quote','vault','orders','switch','topup','help','clear'].find(c=>c.startsWith(v)&&c!==v);if(c)$inp.value=c+' ';return;}
+});
+document.getElementById('app').addEventListener('click',()=>$inp.focus());
+
+// ── BOOT ──────────────────────────────────────────────────────────
+async function boot(){
+  refreshVault();
+  const ascii=['',
+    '  ████████╗███████╗███╗   ██╗███████╗████████╗',
+    '  ╚══██╔══╝██╔════╝████╗  ██║██╔════╝╚══██╔══╝',
+    '     ██║   █████╗  ██╔██╗ ██║█████╗     ██║   ',
+    '     ██║   ██╔══╝  ██║╚██╗██║██╔══╝     ██║   ',
+    '     ██║   ███████╗██║ ╚████║███████╗   ██║   ',
+    '     ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ',''];
+  for(const a of ascii){ln(a,'header');await wait(35);}
+  ln(`  Settlement & Liquidity Orchestration for Institutional Digital Assets`,'info');
+  ln(`  v1.0  ·  Pre-Seed 2026  ·  Confidential  ·  tenet-systems.netlify.app`,'dim');
+  await wait(80);bl();sep();await wait(60);
+  const init=[
+    [`  Initializing Tenet CLI`,'info'],
+    [`  FI profile loaded           ${S.fi.tenetAddress}  ·  ${S.fi.identity}`,'info'],
+    [`  Settlement vault            ${S.fi.vault.id}  ·  ${usd(S.fi.vault.balance)} USDC`,'info'],
+    [`  Custody layer               Fireblocks  ·  2-of-2 multisig  ·  MPC insured`,'info'],
+    [`  Price feeds                 CryptoCompare (primary)  ·  CoinGecko (fallback)`,'info'],
+    [`  LP network                  ${Object.values(LP).reduce((t,a)=>t+a.length,0)} vaults  ·  4 providers  ·  5 chains`,'info'],
+    [`  Settlement layer            CCTP v1  ·  Everclear  ·  Internal netting`,'info'],
+    [`  Clearing ledger             ONLINE  ·  FIFO concurrency  ·  full audit log`,'info'],
+    [`  Engine mode                 connecting to ws://localhost:8080…`,'dim'],
+    [`  Status                      ● READY`,'success'],
+  ];
+  for(const[text,cls]of init){ln(text,cls);await wait(55);}
+  sep();bl();
+
+  // Start WebSocket connection — updates engine mode line when connected
+  wsConnect();
+  await wait(800);
+  if(_wsReady){
+    ln(`  Engine connected · real engines active · Ledger updates live`,'success');
+  } else {
+    ln(`  Standalone mode · mock engines active · run tenet-server for live mode`,'dim');
+  }
+  bl();ln(`  Type 'help' for available commands.  Try: buy ETH 500000 USDC SOL ETH`,'dim');bl();
+}
+$inp.focus();boot();
+</script>
+</body>
+</html>

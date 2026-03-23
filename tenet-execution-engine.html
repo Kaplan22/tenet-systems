@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TENET SYSTEMS — Execution Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--bg1:#040D18;--bg2:#060F1E;
+  --bb:#6CBFEF;--bm:#2E7BB5;--bd:#153E60;--bk:#0A2438;
+  --gr:#2EBD7A;--gd:#1A6B46;--re:#D95050;--or:#C98A1A;--wh:#C2DFF2;
+  --glow:0 0 8px rgba(108,191,239,0.4);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--bm);
+  font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.65;
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(0,0,0,0.5) 100%)}
+
+#shell{display:flex;flex-direction:column;height:100vh}
+
+/* topbar */
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:7px 20px;border-bottom:1px solid var(--bk);background:rgba(0,8,18,.9)}
+#brand{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--bb);text-shadow:var(--glow)}
+#sub{font-size:9px;color:var(--bk);letter-spacing:.05em;margin-left:14px}
+#topbar-right{display:flex;align-items:center;gap:20px;font-size:10px;color:var(--bd)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
+.dot-on{background:var(--gr);box-shadow:0 0 5px var(--gr);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* body — two columns */
+#body{flex:1;display:flex;min-height:0}
+
+/* left — test harness */
+#harness{width:340px;flex-shrink:0;display:flex;flex-direction:column;
+  border-right:1px solid var(--bk)}
+#harness-hdr{flex-shrink:0;padding:6px 14px;border-bottom:1px solid var(--bk);
+  background:var(--bg1);font-size:9px;letter-spacing:.1em;color:var(--bd);text-transform:uppercase}
+#harness-body{flex:1;overflow-y:auto;padding:10px 14px}
+#harness-body::-webkit-scrollbar{width:2px}
+#harness-body::-webkit-scrollbar-thumb{background:var(--bk)}
+
+.test-group{margin-bottom:16px}
+.tg-label{font-size:9px;color:var(--bd);letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:6px;border-bottom:1px solid var(--bk);padding-bottom:3px}
+.test-btn{display:block;width:100%;text-align:left;background:var(--bg2);
+  border:1px solid var(--bk);color:var(--bm);font-family:inherit;font-size:10px;
+  padding:5px 10px;margin-bottom:4px;cursor:pointer;transition:all .15s;border-radius:2px}
+.test-btn:hover{background:var(--bg1);color:var(--bb);border-color:var(--bd)}
+.test-btn.running{color:var(--or);border-color:var(--or)}
+.test-btn.pass{color:var(--gr);border-color:var(--gd)}
+.test-btn.fail{color:var(--re);border-color:var(--re)}
+
+.param-row{display:flex;gap:6px;margin-bottom:4px;align-items:center}
+.param-label{font-size:9px;color:var(--bd);flex:0 0 80px}
+.param-input{flex:1;background:var(--bg2);border:1px solid var(--bk);color:var(--bi, #A8D8F5);
+  font-family:inherit;font-size:10px;padding:3px 7px;outline:none;border-radius:2px}
+.param-input:focus{border-color:var(--bd)}
+select.param-input option{background:var(--bg1)}
+
+.run-btn{width:100%;background:rgba(44,123,181,.15);border:1px solid var(--bd);
+  color:var(--bb);font-family:inherit;font-size:10px;padding:6px;cursor:pointer;
+  transition:all .15s;margin-top:6px;border-radius:2px;letter-spacing:.04em}
+.run-btn:hover{background:rgba(44,123,181,.25);text-shadow:var(--glow)}
+
+/* right — engine output */
+#output-area{flex:1;display:flex;flex-direction:column;min-width:0}
+#output-hdr{flex-shrink:0;padding:6px 16px;border-bottom:1px solid var(--bk);
+  background:var(--bg1);display:flex;justify-content:space-between;align-items:center}
+#output-title{font-size:9px;letter-spacing:.1em;color:var(--bd);text-transform:uppercase}
+#output-status{font-size:9px;color:var(--bd)}
+#output{flex:1;overflow-y:auto;padding:10px 16px}
+#output::-webkit-scrollbar{width:2px}
+#output::-webkit-scrollbar-thumb{background:var(--bk)}
+
+/* output line types */
+.ln{display:block;white-space:pre-wrap;word-break:break-all;
+  animation:linein .08s ease-out both}
+@keyframes linein{from{opacity:0;transform:translateX(3px)}to{opacity:1;transform:none}}
+.ln.blank{height:6px}
+.ln.sep{color:var(--bk)}
+.ln.head{color:var(--bb);font-weight:700;text-shadow:var(--glow)}
+.ln.info{color:var(--bm)}
+.ln.dim{color:var(--bd)}
+.ln.bright{color:var(--bb)}
+.ln.success{color:var(--gr)}
+.ln.warn{color:var(--or)}
+.ln.error{color:var(--re)}
+.ln.result{color:var(--wh)}
+
+/* engine log strip */
+#eng-log{flex-shrink:0;height:28px;border-top:1px solid var(--bk);background:var(--bg1);
+  display:flex;align-items:center;overflow:hidden}
+.loge{display:flex;align-items:center;gap:6px;padding:0 12px;height:100%;
+  border-right:1px solid var(--bk);flex-shrink:0;animation:logslide .18s ease-out}
+@keyframes logslide{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+.logets{font-size:9px;color:var(--bk);white-space:nowrap}
+.logesrc{font-size:9px;padding:1px 4px;border-radius:2px}
+.ex{background:rgba(46,189,122,.08);color:var(--gd)}
+.logemsg{font-size:10px;color:var(--bd);white-space:nowrap;max-width:200px;
+  overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <div id="topbar">
+    <div style="display:flex;align-items:baseline">
+      <span id="brand">TENET SYSTEMS</span>
+      <span id="sub">Execution Engine  ·  v1.0  ·  Standalone Module  ·  Spec-Compliant</span>
+    </div>
+    <div id="topbar-right">
+      <span><span class="dot dot-on"></span>ENGINE LOADED</span>
+      <span id="clk"></span>
+    </div>
+  </div>
+
+  <div id="body">
+
+    <!-- LEFT: test harness -->
+    <div id="harness">
+      <div id="harness-hdr">Test Harness  ·  Submit intents to the engine</div>
+      <div id="harness-body">
+
+        <div class="test-group">
+          <div class="tg-label">Custom Intent</div>
+          <div class="param-row">
+            <span class="param-label">Asset</span>
+            <select class="param-input" id="p-asset">
+              <option>ETH</option><option>SOL</option><option>BTC</option>
+              <option>USDC</option><option>WBTC</option>
+            </select>
+          </div>
+          <div class="param-row">
+            <span class="param-label">USDC Amount</span>
+            <input class="param-input" id="p-amount" type="number" value="500000">
+          </div>
+          <div class="param-row">
+            <span class="param-label">Delivery Chain</span>
+            <select class="param-input" id="p-chain">
+              <option>SOL</option><option>ETH</option><option>ARB</option>
+              <option>BASE</option><option>POLYGON</option>
+            </select>
+          </div>
+          <div class="param-row">
+            <span class="param-label">Slip Tolerance</span>
+            <input class="param-input" id="p-slip" type="number" value="50">
+          </div>
+          <div class="param-row">
+            <span class="param-label">FI Address</span>
+            <select class="param-input" id="p-fi">
+              <option>GoldmanSachs_x800</option>
+              <option>JPMorgan_x240</option>
+              <option>BlackRock_x320</option>
+              <option>Fidelity_x510</option>
+            </select>
+          </div>
+          <button class="run-btn" onclick="runCustom()">▶  RUN INTENT</button>
+        </div>
+
+        <div class="test-group">
+          <div class="tg-label">Spec Test Cases</div>
+          <button class="test-btn" id="t1" onclick="runTest('t1')">
+            §8 Worked example — $50M ETH on SOL (50bps)</button>
+          <button class="test-btn" id="t2" onclick="runTest('t2')">
+            Single LP fill — small order fully covered</button>
+          <button class="test-btn" id="t3" onclick="runTest('t3')">
+            Slippage too tight — all LPs breach tolerance</button>
+          <button class="test-btn" id="t4" onclick="runTest('t4')">
+            No LP inventory — chain has no registered LPs</button>
+          <button class="test-btn" id="t5" onclick="runTest('t5')">
+            Residual fill rule — &lt;1% remainder uses eliminated LP</button>
+          <button class="test-btn" id="t6" onclick="runTest('t6')">
+            5-leg maximum hit — large order, tight tolerance</button>
+          <button class="test-btn" id="t7" onclick="runTest('t7')">
+            Pareto elimination — dominated LP never appears in plan</button>
+          <button class="test-btn" id="t8" onclick="runTest('t8')">
+            Quantity lock — spot moves between quote and lock</button>
+        </div>
+
+        <div class="test-group">
+          <div class="tg-label">Run All</div>
+          <button class="run-btn" onclick="runAll()">▶  RUN ALL SPEC TESTS</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: engine output -->
+    <div id="output-area">
+      <div id="output-hdr">
+        <span id="output-title">Engine Output  ·  Awaiting intent</span>
+        <span id="output-status"></span>
+      </div>
+      <div id="output"></div>
+    </div>
+
+  </div>
+
+  <div id="eng-log">
+    <div class="loge" style="color:var(--bk);font-size:10px;border:none">
+      execution engine · ready
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════
+const usd2  = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num   = (n, dp=4) => n.toLocaleString('en-US', {minimumFractionDigits:dp, maximumFractionDigits:dp});
+const rp    = (s, w) => { s=String(s); return s.length>=w?s:s+' '.repeat(w-s.length); };
+const shrt  = () => new Date().toISOString().slice(11,19);
+const wait  = ms => new Promise(r => setTimeout(r, ms));
+const rnd   = (a, b) => a + Math.random() * (b - a);
+
+// Residual threshold — if remaining / lockedQty < this, apply residual rule
+const RESIDUAL_THRESHOLD = 0.01;   // 1%
+const MAX_LEGS           = 5;
+const FILL_EPSILON       = 0.0001; // negligible remainder
+
+// ═══════════════════════════════════════════════════════════════════
+// CHAIN FINALITY TIERS  (for speed tiebreaking — §6.3)
+// Lower tier = faster finality = preferred in tiebreaks
+// ═══════════════════════════════════════════════════════════════════
+const CHAIN_TIER = {
+  SOL:     1,   // ~400ms
+  ARB:     2,   // ~250ms Nitro
+  BASE:    2,   // OP stack
+  POLYGON: 3,   // ~2s
+  ETH:     4,   // ~12s per block
+};
+const chainTier = c => CHAIN_TIER[c.toUpperCase()] ?? 5;
+
+// ═══════════════════════════════════════════════════════════════════
+// SPOT PRICES — mock with jitter
+// [INTEGRATION POINT] Replace with CryptoCompare / CoinGecko live feed
+// ═══════════════════════════════════════════════════════════════════
+const SPOT_BASE = { ETH:3318.50, SOL:141.72, BTC:87432.00, USDC:1.00, WBTC:87180.00 };
+const spot = asset => (SPOT_BASE[asset.toUpperCase()] ?? 1) * (1 + (Math.random() * 0.0018 - 0.0009));
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT PROVIDER INTERFACE
+// ─────────────────────────────────────────────────────────────────
+// The Execution Engine never calls vault provider directly for
+// reservations — that belongs to the Reservation Engine.
+// It calls checkBalance() to read available inventory during
+// price discovery, and cosignTransfer() during delivery.
+//
+// [FIREBLOCKS INTEGRATION POINT]
+// checkBalance  → GET /v1/vault/accounts/{id}/asset/{assetId}
+// cosignTransfer→ POST /v1/transactions (TAP co-sign policy)
+// ═══════════════════════════════════════════════════════════════════
+class MockVaultProvider {
+  async checkBalance(vaultId) {
+    const v = VAULT_REGISTRY[vaultId];
+    if (!v) throw new Error('VAULT_NOT_FOUND: ' + vaultId);
+    await wait(rnd(25, 60));              // simulate API latency
+    return v.balance - v.reserved;       // available = total minus already reserved
+  }
+
+  async cosignTransfer(vaultId, to, qty) {
+    const v = VAULT_REGISTRY[vaultId];
+    if (!v) throw new Error('VAULT_NOT_FOUND: ' + vaultId);
+    await wait(rnd(80, 190));            // simulate co-sign latency
+    v.balance -= qty;
+    return _txHash();
+  }
+}
+const VaultProvider = new MockVaultProvider();
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT REGISTRY  (socket structure — Fireblocks connects here)
+// ═══════════════════════════════════════════════════════════════════
+const VAULT_REGISTRY = {
+  // ── LP LIQUIDITY VAULTS ───────────────────────────────────────
+  'Wintermute_SOL':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'SOL',     asset:'ETH',  balance:5776,      reserved:0, status:'ACTIVE' },
+  'Wintermute_ETH':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'ETH',     asset:'ETH',  balance:8200,      reserved:0, status:'ACTIVE' },
+  'Wintermute_ARB':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'ARB',     asset:'ETH',  balance:4100,      reserved:0, status:'ACTIVE' },
+  'Galaxy_SOL':        { type:'LP_LIQUIDITY', lp:'Galaxy',     chain:'SOL',     asset:'ETH',  balance:5130,      reserved:0, status:'ACTIVE' },
+  'Galaxy_ARB':        { type:'LP_LIQUIDITY', lp:'Galaxy',     chain:'ARB',     asset:'USDC', balance:3_500_000, reserved:0, status:'ACTIVE' },
+  'Galaxy_BASE':       { type:'LP_LIQUIDITY', lp:'Galaxy',     chain:'BASE',    asset:'USDC', balance:2_800_000, reserved:0, status:'ACTIVE' },
+  'Cumberland_SOL':    { type:'LP_LIQUIDITY', lp:'Cumberland', chain:'SOL',     asset:'ETH',  balance:4094,      reserved:0, status:'ACTIVE' },
+  'Cumberland_ETH':    { type:'LP_LIQUIDITY', lp:'Cumberland', chain:'ETH',     asset:'BTC',  balance:320,       reserved:0, status:'ACTIVE' },
+  'Cumberland_POLYGON':{ type:'LP_LIQUIDITY', lp:'Cumberland', chain:'POLYGON', asset:'USDC', balance:1_200_000, reserved:0, status:'ACTIVE' },
+  // Extra LPs for test cases
+  'Amber_SOL':         { type:'LP_LIQUIDITY', lp:'Amber',      chain:'SOL',     asset:'ETH',  balance:2100,      reserved:0, status:'ACTIVE' },
+  'GSR_SOL':           { type:'LP_LIQUIDITY', lp:'GSR',        chain:'SOL',     asset:'ETH',  balance:1850,      reserved:0, status:'ACTIVE' },
+  // FI SETTLEMENT VAULTS
+  'GoldmanSettlementVault':  { type:'FI_SETTLEMENT', fi:'GoldmanSachs_x800', balance:10_000_000, reserved:0, status:'ACTIVE' },
+  'JPMorganSettlementVault': { type:'FI_SETTLEMENT', fi:'JPMorgan_x240',     balance:25_000_000, reserved:0, status:'ACTIVE' },
+  'BlackRockSettlementVault':{ type:'FI_SETTLEMENT', fi:'BlackRock_x320',    balance:50_000_000, reserved:0, status:'ACTIVE' },
+  'FidelitySettlementVault': { type:'FI_SETTLEMENT', fi:'Fidelity_x510',     balance:5_000_000,  reserved:0, status:'PENDING_CUSTODY' },
+  // TENET VAULTS
+  'TenetSettlementVault':    { type:'TENET_SETTLEMENT', balance:0, reserved:0, status:'ACTIVE' },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// LP ROUTING TABLE
+// asset + chain → vault + fill price
+// fill price (px): 1.0 = zero slippage. 0.99981 = 1.9bps slippage.
+// slippage in bps = (1 - px) × 10000
+// ═══════════════════════════════════════════════════════════════════
+const LP_ROUTING = [
+  { asset:'ETH',  chain:'SOL',     vault:'Wintermute_SOL',     px:0.99981, tier:1 },
+  { asset:'ETH',  chain:'SOL',     vault:'Galaxy_SOL',          px:0.99989, tier:1 },
+  { asset:'ETH',  chain:'SOL',     vault:'Cumberland_SOL',      px:0.99995, tier:1 },
+  { asset:'ETH',  chain:'SOL',     vault:'Amber_SOL',           px:0.99962, tier:2 },
+  { asset:'ETH',  chain:'SOL',     vault:'GSR_SOL',             px:0.99947, tier:2 },
+  { asset:'ETH',  chain:'ETH',     vault:'Wintermute_ETH',      px:0.99975, tier:1 },
+  { asset:'ETH',  chain:'ARB',     vault:'Wintermute_ARB',      px:0.99988, tier:1 },
+  { asset:'USDC', chain:'ARB',     vault:'Galaxy_ARB',          px:1.00000, tier:1 },
+  { asset:'USDC', chain:'BASE',    vault:'Galaxy_BASE',         px:1.00000, tier:1 },
+  { asset:'USDC', chain:'POLYGON', vault:'Cumberland_POLYGON',  px:1.00000, tier:1 },
+  { asset:'BTC',  chain:'ETH',     vault:'Cumberland_ETH',      px:0.99982, tier:1 },
+];
+
+// FI registry
+const FI_REGISTRY = {
+  'GoldmanSachs_x800': { identity:'Goldman Sachs Asset Mgmt', vault:'GoldmanSettlementVault',   tier:3 },
+  'JPMorgan_x240':     { identity:'JPMorgan Asset Management', vault:'JPMorganSettlementVault',  tier:3 },
+  'BlackRock_x320':    { identity:'BlackRock Inc.',             vault:'BlackRockSettlementVault', tier:3 },
+  'Fidelity_x510':     { identity:'Fidelity Investments',       vault:'FidelitySettlementVault',  tier:2 },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// ENGINE EVENT LOG INTERFACE
+// ─────────────────────────────────────────────────────────────────
+// In production: LEDGER.writeEvent(orderId, 'EXEC', msg, cls)
+// Here: posts to the output panel and the log strip.
+// The engine never writes to the ledger directly — it logs events
+// that Orchestration will forward to the ledger.
+// ═══════════════════════════════════════════════════════════════════
+let _eventCallback = null;
+function setEventCallback(fn) { _eventCallback = fn; }
+function engineLog(orderId, msg, cls='') {
+  if (_eventCallback) _eventCallback(orderId, msg, cls);
+  _stripLog(msg, cls);
+  // also write to output panel
+  _out(msg, cls || 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//
+//  ████████╗███████╗███╗   ██╗███████╗████████╗
+//  ╚══██╔══╝██╔════╝████╗  ██║██╔════╝╚══██╔══╝
+//     ██║   █████╗  ██╔██╗ ██║█████╗     ██║
+//     ██║   ██╔══╝  ██║╚██╗██║██╔══╝     ██║
+//     ██║   ███████╗██║ ╚████║███████╗   ██║
+//     ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝   ╚═╝
+//
+//  EXECUTION ENGINE  —  v1.0
+//  Spec: TenetSystems_ExecutionEngine_Spec_v1.docx
+//
+//  Public methods:
+//    findFills(params)      → FillResult       [§3, §5, §6, §7]
+//    beginDelivery(order)   → void             [§9]
+//
+//  The engine reports all events via engineLog().
+//  It never writes to the ledger directly.
+//  It never posts or releases vault reservations.
+//  It never modifies order state.
+//  Orchestration owns all of that.
+//
+// ═══════════════════════════════════════════════════════════════════
+class ExecutionEngine {
+
+  constructor(vaultProvider) {
+    this._vault = vaultProvider;
+    this.name   = 'EXEC';
+  }
+
+  _log(orderId, msg, cls='') {
+    engineLog(orderId, msg, cls);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // findFills()  [§3.1, §5, §6, §7]
+  // ─────────────────────────────────────────────────────────────
+  // Called by Orchestration after Gate 1 (FI reservation) passes.
+  // params = {
+  //   orderId,      // string
+  //   asset,        // string — e.g. 'ETH'
+  //   usdcAmount,   // number — USDC the FI is spending. Fixed.
+  //   delivChain,   // string — chain for delivery
+  //   slipBps,      // number — FI slippage tolerance in bps
+  //   lockedQty,    // number — asset qty locked at reservation moment
+  //                 //          derived from usdcAmount / spot at that
+  //                 //          instant. Passed in, never re-derived here.
+  // }
+  // Returns FillResult = { ok, fills, blendedSlipBps, reason, msg }
+  // ─────────────────────────────────────────────────────────────
+  async findFills({ orderId, asset, usdcAmount, delivChain, slipBps, lockedQty }) {
+    this._log(orderId,
+      `findFills · ${asset.toUpperCase()} on ${delivChain.toUpperCase()} · ` +
+      `usdc ${usd2(usdcAmount)} · qty ${num(lockedQty,6)} · slip ≤${slipBps}bps`
+    );
+
+    // ── STEP 1: Filter candidates [§5.2] ───────────────────────
+    const candidates = await this._filterCandidates(orderId, asset, delivChain, slipBps);
+
+    if (!candidates.length) {
+      // Distinguish: does inventory exist at all, or is it a tolerance problem?
+      const anyExist = LP_ROUTING.filter(r =>
+        r.asset === asset.toUpperCase() && r.chain === delivChain.toUpperCase()
+      );
+      if (!anyExist.length) {
+        return this._fail(orderId, 'LP_LIQUIDITY_UNAVAILABLE',
+          `no LP inventory registered for ${asset.toUpperCase()} on ${delivChain.toUpperCase()}`);
+      }
+      // LPs exist but all breach tolerance — show tightest available price
+      const tightest = anyExist.reduce((best, r) => r.px > best.px ? r : best, anyExist[0]);
+      const tightestSlip = ((1 - tightest.px) * 10000).toFixed(1);
+      return this._fail(orderId, 'SLIPPAGE_TOO_TIGHT',
+        `market session cannot fill ${asset.toUpperCase()} on ${delivChain.toUpperCase()} ` +
+        `within ${slipBps}bps. ` +
+        `Tightest available: ${tightestSlip}bps (${tightest.vault}). ` +
+        `Widen tolerance or retry at a different session.`);
+    }
+
+    this._log(orderId,
+      `candidates after filter: ${candidates.length} LP${candidates.length!==1?'s':''} · ` +
+      candidates.map(c => `${c.vault}(${num(c.avail,2)}@${((1-c.px)*10000).toFixed(1)}bps)`).join(' · ')
+    );
+
+    // ── STEP 2: Pareto elimination [§6.1] ──────────────────────
+    const frontier = this._paretoEliminate(orderId, candidates);
+
+    // ── STEP 3: Rank the Pareto frontier [§6.2, §6.3] ─────────
+    const ranked = this._rankFrontier(orderId, frontier, lockedQty);
+
+    // ── STEP 4: Greedy fill [§7.1] ─────────────────────────────
+    const { fills, remaining } = this._greedyFill(orderId, ranked, lockedQty, asset);
+
+    // ── STEP 5: Residual fill rule [§7, impl note §12.5] ───────
+    // If remaining is less than 1% of the order AND a previously
+    // eliminated LP can cover it within tolerance, use it as the
+    // final leg. Prevents frustrating near-complete rejections.
+    if (remaining > FILL_EPSILON) {
+      const residualFilled = this._tryResidual(
+        orderId, candidates, frontier, fills, remaining, lockedQty, slipBps, asset
+      );
+      if (!residualFilled) {
+        // Cannot fill — reject with clear diagnostic
+        const filledPct = ((lockedQty - remaining) / lockedQty * 100).toFixed(1);
+        return this._fail(orderId, 'SLIPPAGE_TOO_TIGHT',
+          `market session cannot fill ${asset.toUpperCase()} on ${delivChain.toUpperCase()} ` +
+          `within ${slipBps}bps across ${MAX_LEGS} LP legs. ` +
+          `Max fillable at tolerance: ${num(lockedQty - remaining, 4)} ${asset.toUpperCase()} ` +
+          `(${filledPct}% of order). Widen tolerance or retry.`);
+      }
+    }
+
+    // ── STEP 6: Blended slippage [§7.3] ────────────────────────
+    const blendedSlipBps = this._calcBlendedSlip(fills, lockedQty);
+
+    // Consistency guard — should never fire if filtering was correct
+    if (blendedSlipBps > slipBps + 0.1) {
+      this._log(orderId,
+        `ENGINE_CONSISTENCY_ERROR · blended slip ${blendedSlipBps.toFixed(2)}bps ` +
+        `exceeds tolerance ${slipBps}bps after fill construction`, 're'
+      );
+      return this._fail(orderId, 'SLIPPAGE_TOO_TIGHT',
+        `blended slippage ${blendedSlipBps.toFixed(2)}bps exceeds tolerance ${slipBps}bps`);
+    }
+
+    // ── STEP 7: Annotate fills with pct of order ───────────────
+    const totalFilled = fills.reduce((s, f) => s + f.qty, 0);
+    fills.forEach(f => { f.pctOfOrder = f.qty / totalFilled * 100; });
+
+    this._log(orderId,
+      `fill plan · ${fills.length} leg${fills.length!==1?'s':''} · ` +
+      `blended slippage ${blendedSlipBps.toFixed(2)}bps · ` +
+      `${num(totalFilled, 4)} ${asset.toUpperCase()} total`, 'bright'
+    );
+
+    return { ok:true, fills, blendedSlipBps, reason:null, msg:null };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _filterCandidates()  [§5.1, §5.2]
+  // ─────────────────────────────────────────────────────────────
+  // An LP is eligible iff:
+  //   1. Registered for asset on delivChain
+  //   2. Vault status is ACTIVE
+  //   3. Available balance > 0
+  //   4. Fill price within slipBps tolerance
+  //
+  // Balances queried fresh — NO CACHE [§5.1]
+  // All queries fire in parallel with Promise.all() [§12.2]
+  // ─────────────────────────────────────────────────────────────
+  async _filterCandidates(orderId, asset, delivChain, slipBps) {
+    const assetUp = asset.toUpperCase();
+    const chainUp = delivChain.toUpperCase();
+    const maxSlip = slipBps / 10000;
+
+    // Find all route entries for this asset + chain
+    const routes = LP_ROUTING.filter(r =>
+      r.asset === assetUp && r.chain === chainUp
+    );
+
+    if (!routes.length) return [];
+
+    // Query all balances in parallel — real-time, no cache
+    const withBalance = await Promise.all(routes.map(async r => {
+      const vault = VAULT_REGISTRY[r.vault];
+      if (!vault || vault.status !== 'ACTIVE') return null;
+      try {
+        const avail = await this._vault.checkBalance(r.vault);
+        return { ...r, avail };
+      } catch { return null; }
+    }));
+
+    // Filter: within slippage tolerance AND has available inventory
+    return withBalance.filter(r =>
+      r !== null &&
+      r.avail > FILL_EPSILON &&
+      (1 - r.px) <= maxSlip
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _paretoEliminate()  [§6.1]
+  // ─────────────────────────────────────────────────────────────
+  // Remove any LP that is strictly dominated on BOTH price AND
+  // depth by another LP in the candidate set.
+  //
+  // LP_i is dominated if ∃ LP_j such that:
+  //   LP_j.px   >= LP_i.px    (at least as good on price)
+  //   LP_j.avail >= LP_i.avail (at least as good on depth)
+  //   LP_j is strictly better on at least one dimension
+  //
+  // Returns the Pareto frontier — only non-dominated LPs.
+  // ─────────────────────────────────────────────────────────────
+  _paretoEliminate(orderId, candidates) {
+    const dominated = new Set();
+
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = 0; j < candidates.length; j++) {
+        if (i === j) continue;
+        const ci = candidates[i];
+        const cj = candidates[j];
+        // cj dominates ci if cj beats ci on both dimensions
+        const betterPrice = cj.px    >= ci.px    && cj.px    > ci.px;
+        const betterDepth = cj.avail >= ci.avail  && cj.avail > ci.avail;
+        const equalPrice  = cj.px    === ci.px;
+        const equalDepth  = cj.avail === ci.avail;
+
+        if (
+          (betterPrice && (betterDepth || equalDepth)) ||
+          (betterDepth && (betterPrice || equalPrice))
+        ) {
+          dominated.add(ci.vault);
+        }
+      }
+    }
+
+    const frontier = candidates.filter(c => !dominated.has(c.vault));
+
+    if (dominated.size > 0) {
+      this._log(orderId,
+        `pareto: eliminated ${dominated.size} dominated LP${dominated.size!==1?'s':''} · ` +
+        `[${[...dominated].join(', ')}]`, 'dim'
+      );
+    }
+    this._log(orderId,
+      `pareto frontier: ${frontier.length} LP${frontier.length!==1?'s':''} · ` +
+      frontier.map(f => f.vault).join(', ')
+    );
+
+    return frontier;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _rankFrontier()  [§6.2, §6.3]
+  // ─────────────────────────────────────────────────────────────
+  // Rank the Pareto frontier by blended cost score.
+  //
+  // blended_cost(LP) = LP.px × min(LP.avail, remaining) / remaining
+  //                  + 1.0   × max(0, remaining - LP.avail) / remaining
+  //
+  // Higher score = better LP to fill from first.
+  //
+  // Tiebreaker 1: depth (more inventory preferred — fewer legs)
+  // Tiebreaker 2: chain finality tier (faster chain preferred)
+  // Tiebreaker 3: vault ID alphabetical (deterministic)
+  // ─────────────────────────────────────────────────────────────
+  _rankFrontier(orderId, frontier, remaining) {
+    const scored = frontier.map(lp => {
+      const fillable = Math.min(lp.avail, remaining);
+      const residual = Math.max(0, remaining - lp.avail);
+      const score = (lp.px * fillable + 1.0 * residual) / remaining;
+      return { ...lp, score };
+    });
+
+    scored.sort((a, b) => {
+      if (Math.abs(a.score - b.score) > 1e-9) return b.score - a.score;  // higher score = better
+      if (Math.abs(a.avail - b.avail) > 1e-6) return b.avail - a.avail;  // more depth
+      if (chainTier(a.chain) !== chainTier(b.chain)) return chainTier(a.chain) - chainTier(b.chain); // faster chain
+      return a.vault < b.vault ? -1 : 1;                                  // alphabetical
+    });
+
+    this._log(orderId,
+      `ranked: ` + scored.map(s =>
+        `${s.vault}(score:${s.score.toFixed(6)})`
+      ).join(' > ')
+    );
+
+    return scored;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _greedyFill()  [§7.1]
+  // ─────────────────────────────────────────────────────────────
+  // Fill from highest-ranked LP downward until order complete
+  // or MAX_LEGS reached.
+  // ─────────────────────────────────────────────────────────────
+  _greedyFill(orderId, ranked, lockedQty, asset) {
+    let remaining = lockedQty;
+    const fills = [];
+
+    for (const lp of ranked) {
+      if (remaining <= FILL_EPSILON) break;
+      if (fills.length >= MAX_LEGS)  break;
+
+      const fillQty = Math.min(lp.avail, remaining);
+      if (fillQty <= FILL_EPSILON) continue;
+
+      fills.push({
+        vault:   lp.vault,
+        lp:      lp.vault.split('_')[0],
+        chain:   lp.chain,
+        qty:     fillQty,
+        px:      lp.px,
+        slipBps: parseFloat(((1 - lp.px) * 10000).toFixed(2)),
+        pctOfOrder: 0,  // set after all legs confirmed
+      });
+      remaining -= fillQty;
+
+      this._log(orderId,
+        `  leg ${fills.length}: ${lp.vault}  ` +
+        `${num(fillQty, 4)} ${asset.toUpperCase()}  ` +
+        `@ ${lp.px}  (${((1-lp.px)*10000).toFixed(1)}bps)  ` +
+        `remaining: ${num(remaining, 4)}`
+      );
+    }
+
+    return { fills, remaining };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _tryResidual()  [§12.5]
+  // ─────────────────────────────────────────────────────────────
+  // If remaining < 1% of lockedQty AND a Pareto-eliminated LP
+  // (or a within-tolerance LP not yet used) can cover the residual,
+  // add it as the final leg. Prevents full rejections for tiny
+  // unfilled remainders.
+  //
+  // Returns true if residual was handled, false if not.
+  // ─────────────────────────────────────────────────────────────
+  _tryResidual(orderId, candidates, frontier, fills, remaining, lockedQty, slipBps, asset) {
+    const residualPct = remaining / lockedQty;
+
+    if (residualPct >= RESIDUAL_THRESHOLD) return false;   // too large for residual rule
+    if (fills.length >= MAX_LEGS)          return false;   // leg limit already reached
+
+    // Find eliminated LPs (in candidates but not on frontier) within slippage tolerance
+    const frontierVaults = new Set(frontier.map(f => f.vault));
+    const usedVaults     = new Set(fills.map(f => f.vault));
+    const eliminated     = candidates.filter(c =>
+      !frontierVaults.has(c.vault) &&
+      !usedVaults.has(c.vault) &&
+      c.avail >= remaining
+    );
+
+    if (!eliminated.length) return false;
+
+    // Take the best-priced eliminated LP that can cover the residual
+    eliminated.sort((a, b) => b.px - a.px);
+    const pick = eliminated[0];
+
+    fills.push({
+      vault:   pick.vault,
+      lp:      pick.vault.split('_')[0],
+      chain:   pick.chain,
+      qty:     remaining,
+      px:      pick.px,
+      slipBps: parseFloat(((1 - pick.px) * 10000).toFixed(2)),
+      pctOfOrder: 0,
+    });
+
+    this._log(orderId,
+      `  leg ${fills.length} (residual ${(residualPct*100).toFixed(2)}%): ` +
+      `${pick.vault}  ${num(remaining, 4)} ${asset.toUpperCase()}  ` +
+      `@ ${pick.px}  (${((1-pick.px)*10000).toFixed(1)}bps)  — eliminated LP, within tolerance`
+    );
+
+    return true;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _calcBlendedSlip()  [§7.3]
+  // ─────────────────────────────────────────────────────────────
+  // Weighted average slippage across all fill legs.
+  // blendedSlipBps = (1 - weightedPx) × 10000
+  // where weightedPx = Σ(leg.qty × leg.px) / totalQty
+  // ─────────────────────────────────────────────────────────────
+  _calcBlendedSlip(fills, lockedQty) {
+    const totalQty  = fills.reduce((s, f) => s + f.qty, 0);
+    const weightedPx = fills.reduce((s, f) => s + f.qty * f.px, 0) / totalQty;
+    return parseFloat(((1 - weightedPx) * 10000).toFixed(4));
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // beginDelivery()  [§9]
+  // ─────────────────────────────────────────────────────────────
+  // Called by Orchestration after BOTH Gate 1 and Gate 2 pass.
+  // Transfers assets from LP vault(s) to FI destination wallet.
+  //
+  // Single LP:  direct transfer, no aggregation vault.
+  // Multi-LP:   create aggregation vault, parallel LP transfers,
+  //             single delivery to FI, close aggregation vault.
+  //
+  // Calls back to orchestration via:
+  //   orch._onDeliveryConfirmed(orderId)   — success
+  //   orch._onDeliveryFailed(orderId, reason) — failure
+  // ─────────────────────────────────────────────────────────────
+  async beginDelivery(order, orch) {
+    const isSplit = order.fills.length > 1;
+    this._log(order.id,
+      `delivery · ${isSplit ? `SPLIT ${order.fills.length} legs via aggregation vault` : 'single LP → destination'}`,
+      isSplit ? 'warn' : ''
+    );
+
+    try {
+      if (!isSplit) {
+        // ── SINGLE LP DELIVERY [§9.1] ─────────────────────────
+        const f = order.fills[0];
+        const tx = await this._vault.cosignTransfer(f.vault, order.destWallet, f.qty);
+        order.execTx = tx;
+        this._log(order.id,
+          `${f.vault} → ${order.destWallet}  ${num(f.qty, 4)} ${order.asset}  tx:${tx}`, 'success'
+        );
+
+      } else {
+        // ── MULTI-LP DELIVERY [§9.2] ──────────────────────────
+        const aggId = `TenetAggregation_${order.id}`;
+        VAULT_REGISTRY[aggId] = {
+          type:'TENET_AGGREGATION', balance:0, reserved:0, status:'ACTIVE'
+        };
+        this._log(order.id, `aggregation vault created · ${aggId}`);
+
+        // All LP legs fire in parallel
+        await Promise.all(order.fills.map(async f => {
+          const tx = await this._vault.cosignTransfer(f.vault, aggId, f.qty);
+          VAULT_REGISTRY[aggId].balance += f.qty;
+          this._log(order.id,
+            `${f.vault} → ${aggId}  ${num(f.qty, 4)} ${order.asset}  tx:${tx}`
+          );
+        }));
+
+        // Confirm aggregated quantity
+        const confirmed = VAULT_REGISTRY[aggId].balance;
+        this._log(order.id,
+          `aggregation vault confirmed: ${num(confirmed, 4)} ${order.asset}`
+        );
+
+        // Single delivery from aggregation vault to FI
+        const delivTx = await this._vault.cosignTransfer(aggId, order.destWallet, confirmed);
+        order.execTx = delivTx;
+        this._log(order.id,
+          `${aggId} → ${order.destWallet}  ${num(confirmed, 4)} ${order.asset}  tx:${delivTx}`,
+          'success'
+        );
+
+        // Close and zero aggregation vault [§9.2]
+        delete VAULT_REGISTRY[aggId];
+        this._log(order.id, `aggregation vault closed and zeroed · ${aggId}`);
+      }
+
+      orch._onDeliveryConfirmed(order.id);
+
+    } catch (e) {
+      this._log(order.id, `delivery failed · ${e.message}`, 're');
+      orch._onDeliveryFailed(order.id, 'VAULT_CO-SIGN_FAILURE');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // _fail()  — consistent failure result shape
+  // ─────────────────────────────────────────────────────────────
+  _fail(orderId, reason, msg) {
+    this._log(orderId, `${reason} · ${msg}`, 're');
+    return { ok:false, fills:[], blendedSlipBps:0, reason, msg };
+  }
+}
+
+// Singleton — exposed for wiring to Orchestration Engine
+// [WIRING POINT] ORCH instantiates this and passes VaultProvider
+const EXEC = new ExecutionEngine(VaultProvider);
+window.TENET_EXEC = EXEC;
+
+// ═══════════════════════════════════════════════════════════════════
+// MOCK ORCHESTRATION CALLBACKS
+// Used only by the test harness — in production ORCH owns these
+// ═══════════════════════════════════════════════════════════════════
+const MockOrch = {
+  _onDeliveryConfirmed: (orderId) => {
+    engineLog(orderId, `ORCH callback: _onDeliveryConfirmed · ${orderId}`, 'success');
+    _out('', 'blank');
+    _out('DELIVERY CONFIRMED — callback to Orchestration Engine', 'success');
+  },
+  _onDeliveryFailed: (orderId, reason) => {
+    engineLog(orderId, `ORCH callback: _onDeliveryFailed · ${reason}`, 're');
+    _out('DELIVERY FAILED — callback to Orchestration Engine · ' + reason, 'error');
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// QUANTITY LOCK SIMULATION  [§4]
+// ─────────────────────────────────────────────────────────────────
+// In production: lockedQty is determined at the moment the
+// Reservation Engine fires the FI vault reservation.
+// It is derived from usdcAmount / spot(asset) at that exact moment.
+// After that moment it never changes, regardless of spot movement.
+//
+// Here: we simulate by taking spot at call time.
+// ═══════════════════════════════════════════════════════════════════
+function deriveLockedQty(asset, usdcAmount) {
+  const assetSpot = spot(asset);
+  const lockedQty = usdcAmount / assetSpot;
+  return { lockedQty, assetSpot };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TEST HARNESS
+// ═══════════════════════════════════════════════════════════════════
+let _orderCounter = 93847590;
+const nextOrdId = () => 'ORD_' + (++_orderCounter);
+const rp_ = (s, w) => { s=String(s); return s.length>=w?s:s+' '.repeat(w-s.length); };
+const num2 = (n, dp=2) => n.toLocaleString('en-US', {minimumFractionDigits:dp, maximumFractionDigits:dp});
+
+async function _executeIntent({ asset, usdcAmount, delivChain, slipBps, fi='GoldmanSachs_x800' }) {
+  const orderId = nextOrdId();
+  clearOutput();
+  document.getElementById('output-title').textContent = `${orderId} · Running`;
+  document.getElementById('output-status').textContent = '';
+
+  _out('═'.repeat(72), 'sep');
+  _out(`  EXECUTION ENGINE  ·  ${orderId}`, 'head');
+  _out('═'.repeat(72), 'sep');
+  _out('', 'blank');
+  _out(`  Intent        ${asset.toUpperCase()} on ${delivChain.toUpperCase()}`, 'result');
+  _out(`  USDC amount   ${usd2(usdcAmount)}`, 'result');
+  _out(`  Slip tolerance ${slipBps} bps`, 'result');
+  _out(`  FI             ${fi}`, 'dim');
+  _out('', 'blank');
+  _out('─'.repeat(72), 'sep');
+  _out('  QUANTITY LOCK  [§4]', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+
+  // Simulate quantity lock at reservation moment
+  const quoteSpot         = spot(asset);
+  const quotedQty         = usdcAmount / quoteSpot;
+  _out(`  Quote spot     ${usd2(quoteSpot)} / ${asset.toUpperCase()}`, 'dim');
+  _out(`  Quoted qty     ${num(quotedQty, 6)} ${asset.toUpperCase()}  (shown to FI in CLI)`, 'dim');
+  _out('', 'blank');
+  _out(`  [ FI confirms → Reservation Engine fires Gate 1 → lock event ]`, 'warn');
+  _out('', 'blank');
+
+  // Spot may have moved slightly since quote — this is the lock moment
+  const { lockedQty, assetSpot: lockSpot } = deriveLockedQty(asset, usdcAmount);
+  const delta = lockedQty - quotedQty;
+  const deltaPct = (delta / quotedQty * 100).toFixed(4);
+
+  _out(`  Lock spot      ${usd2(lockSpot)} / ${asset.toUpperCase()}`, 'info');
+  _out(`  Locked qty     ${num(lockedQty, 6)} ${asset.toUpperCase()}  ← immutable from this point`, 'bright');
+  _out(`  Qty delta      ${delta >= 0 ? '+' : ''}${num(delta, 6)} ${asset.toUpperCase()}  (${delta >= 0 ? '+' : ''}${deltaPct}%)  FI absorbs spot movement`, 'dim');
+  _out(`  USDC fixed     ${usd2(usdcAmount)}  ← never changes`, 'bright');
+  _out('', 'blank');
+  _out('─'.repeat(72), 'sep');
+  _out('  PRICE DISCOVERY  [§5]', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+
+  const startTime = Date.now();
+  const result = await EXEC.findFills({
+    orderId, asset, usdcAmount, delivChain, slipBps, lockedQty
+  });
+  const elapsed = Date.now() - startTime;
+
+  _out('', 'blank');
+
+  if (!result.ok) {
+    _out('─'.repeat(72), 'sep');
+    _out('  RESULT  ·  ORDER REJECTED', 'head');
+    _out('─'.repeat(72), 'sep');
+    _out('', 'blank');
+    _out(`  Reason   ${result.reason}`, 'error');
+    _out(`  Detail   ${result.msg}`, 'error');
+    _out('', 'blank');
+    _out(`  Time     ${elapsed}ms`, 'dim');
+    _out('', 'blank');
+    document.getElementById('output-title').textContent = `${orderId} · REJECTED · ${result.reason}`;
+    document.getElementById('output-status').textContent = `${elapsed}ms`;
+    return result;
+  }
+
+  _out('─'.repeat(72), 'sep');
+  _out('  FILL PLAN  [§7]', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+
+  // Header row
+  _out(
+    `  ${'#'.padEnd(3)} ${'VAULT'.padEnd(22)} ${'QTY'.padEnd(18)} ${'PCT'.padEnd(8)} ${'PRICE'.padEnd(10)} SLIPPAGE`,
+    'dim'
+  );
+  _out('  ' + '─'.repeat(68), 'sep');
+
+  result.fills.forEach((f, i) => {
+    _out(
+      `  ${String(i+1).padEnd(3)} ${f.vault.padEnd(22)} ` +
+      `${(num(f.qty,4)+' '+asset.toUpperCase()).padEnd(18)} ` +
+      `${(f.pctOfOrder.toFixed(1)+'%').padEnd(8)} ` +
+      `${String(f.px).padEnd(10)} ` +
+      `${f.slipBps}bps`,
+      'result'
+    );
+  });
+
+  _out('  ' + '─'.repeat(68), 'sep');
+  const totalFilled = result.fills.reduce((s,f)=>s+f.qty,0);
+  _out(
+    `  ${'TOTAL'.padEnd(25)} ${(num(totalFilled,4)+' '+asset.toUpperCase()).padEnd(18)} ` +
+    `${'100.0%'.padEnd(8)} ` +
+    `blended slip: ${result.blendedSlipBps.toFixed(2)}bps`,
+    'bright'
+  );
+  _out('', 'blank');
+
+  // Summary
+  _out('─'.repeat(72), 'sep');
+  _out('  RESULT  ·  FILL PLAN READY', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+  _out(`  Status         FILL PLAN READY — awaiting LP reservation (Gate 2)`, 'success');
+  _out(`  Legs           ${result.fills.length} of ${MAX_LEGS} maximum`, 'info');
+  _out(`  Asset qty      ${num(totalFilled, 6)} ${asset.toUpperCase()}`, 'bright');
+  _out(`  USDC spend     ${usd2(usdcAmount)}`, 'bright');
+  _out(`  Fee (10bps)    ${usd2(usdcAmount * 0.001)}`, 'info');
+  _out(`  Vault extract  ${usd2(usdcAmount * 1.001)}`, 'bright');
+  _out(`  Blended slip   ${result.blendedSlipBps.toFixed(2)}bps  (tolerance: ${slipBps}bps)  ✓`, 'success');
+  _out(`  Time           ${elapsed}ms`, 'dim');
+  _out('', 'blank');
+  _out(`  Next: ORCH → Reservation Engine Gate 2 → LP vault reservations`, 'dim');
+  _out(`  Then: ORCH → EXEC.beginDelivery() + SETT.extractSettlement()`, 'dim');
+  _out('', 'blank');
+
+  document.getElementById('output-title').textContent =
+    `${orderId} · FILL READY · ${result.fills.length} leg${result.fills.length!==1?'s':''} · ${result.blendedSlipBps.toFixed(2)}bps blended`;
+  document.getElementById('output-status').textContent = `${elapsed}ms`;
+
+  return result;
+}
+
+// ── Custom intent ────────────────────────────────────────────────
+async function runCustom() {
+  await _executeIntent({
+    asset:      document.getElementById('p-asset').value,
+    usdcAmount: parseFloat(document.getElementById('p-amount').value),
+    delivChain: document.getElementById('p-chain').value,
+    slipBps:    parseInt(document.getElementById('p-slip').value),
+    fi:         document.getElementById('p-fi').value,
+  });
+}
+
+// ── Spec test cases ───────────────────────────────────────────────
+const TESTS = {
+  t1: { label:'§8 Worked example — $50M ETH on SOL (50bps)',
+    params:{ asset:'ETH', usdcAmount:50_000_000, delivChain:'SOL', slipBps:50 } },
+  t2: { label:'Single LP fill',
+    params:{ asset:'ETH', usdcAmount:500_000, delivChain:'SOL', slipBps:50 } },
+  t3: { label:'Slippage too tight',
+    params:{ asset:'ETH', usdcAmount:500_000, delivChain:'SOL', slipBps:1 } },
+  t4: { label:'No LP inventory on chain',
+    params:{ asset:'ETH', usdcAmount:500_000, delivChain:'BASE', slipBps:50 } },
+  t5: { label:'Residual fill rule',
+    params:{ asset:'ETH', usdcAmount:49_900_000, delivChain:'SOL', slipBps:50 } },
+  t6: { label:'5-leg maximum — large order tight tolerance',
+    params:{ asset:'ETH', usdcAmount:65_000_000, delivChain:'SOL', slipBps:50 } },
+  t7: { label:'Pareto elimination',
+    params:{ asset:'ETH', usdcAmount:8_000_000, delivChain:'SOL', slipBps:50 } },
+  t8: { label:'Quantity lock — spot movement absorbed',
+    params:{ asset:'BTC', usdcAmount:5_000_000, delivChain:'ETH', slipBps:50 } },
+};
+
+async function runTest(id) {
+  const test = TESTS[id];
+  const btn  = document.getElementById(id);
+  btn.className = 'test-btn running';
+  btn.textContent = '◉ ' + test.label + ' — running…';
+  const result = await _executeIntent(test.params);
+  btn.className = 'test-btn ' + (result.ok ? 'pass' : 'fail');
+  btn.textContent = (result.ok ? '✓ ' : '✗ ') + test.label;
+}
+
+async function runAll() {
+  for (const id of Object.keys(TESTS)) {
+    await runTest(id);
+    await wait(300);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OUTPUT PANEL
+// ═══════════════════════════════════════════════════════════════════
+const $out = document.getElementById('output');
+
+function _out(text, cls='info') {
+  const el = document.createElement('span');
+  el.className = 'ln ' + cls;
+  el.textContent = text;
+  $out.appendChild(el);
+  $out.scrollTop = $out.scrollHeight;
+}
+
+function clearOutput() {
+  $out.innerHTML = '';
+}
+
+// ── ENGINE LOG STRIP ─────────────────────────────────────────────
+let _logEls = [], _logInit = false;
+function _stripLog(msg, cls='') {
+  const strip = document.getElementById('eng-log');
+  if (!_logInit) { strip.innerHTML = ''; _logInit = true; }
+  const el = document.createElement('div');
+  el.className = 'loge';
+  el.innerHTML = `<span class="logets">${shrt()}</span>` +
+    `<span class="logesrc ex">EXEC</span>` +
+    `<span class="logemsg">${msg.length>65?msg.slice(0,65)+'…':msg}</span>`;
+  strip.insertBefore(el, strip.firstChild);
+  _logEls.push(el);
+  if (_logEls.length > 8) { _logEls.shift().remove(); }
+}
+
+// ── CLOCK ────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clk').textContent =
+    new Date().toUTCString().slice(17,25) + ' UTC';
+}, 1000);
+
+// ── BOOT ─────────────────────────────────────────────────────────
+_out('═'.repeat(72), 'sep');
+_out('  TENET SYSTEMS  ·  Execution Engine  ·  v1.0', 'head');
+_out('═'.repeat(72), 'sep');
+_out('', 'blank');
+_out('  Spec: TenetSystems_ExecutionEngine_Spec_v1.docx', 'dim');
+_out('', 'blank');
+_out('  Implements:', 'dim');
+_out('    §4  Quantity lock model — locked at reservation moment, not quote', 'dim');
+_out('    §5  Price discovery — real-time LP balance queries, no cache', 'dim');
+_out('    §6  LP scoring — Pareto elimination + blended cost ranking', 'dim');
+_out('    §6.3 Speed as tertiary tiebreaker — chain finality tier', 'dim');
+_out('    §7  Fill plan — greedy fill, max 5 legs, no partial fills', 'dim');
+_out('    §7  Residual rule — <1% remainder can use eliminated LP', 'dim');
+_out('    §9  Delivery — single LP direct, multi-LP via aggregation vault', 'dim');
+_out('', 'blank');
+_out('  LP Routing Table:', 'dim');
+LP_ROUTING.forEach(r => {
+  _out(`    ${(r.vault).padEnd(24)} ${r.asset.padEnd(6)} ${r.chain.padEnd(10)} @ ${r.px}  (${((1-r.px)*10000).toFixed(1)}bps)`, 'darker');
+});
+_out('', 'blank');
+_out('  Select a test case on the left or submit a custom intent.', 'dim');
+_out('', 'blank');
+_out('─'.repeat(72), 'sep');
+_out('  Wiring contract for Orchestration Engine:', 'dim');
+_out('', 'blank');
+_out('    EXEC.findFills({ orderId, asset, usdcAmount,', 'dim');
+_out('                     delivChain, slipBps, lockedQty })', 'dim');
+_out('      → { ok, fills, blendedSlipBps, reason, msg }', 'dim');
+_out('', 'blank');
+_out('    EXEC.beginDelivery(order, orchCallbacks)', 'dim');
+_out('      → orch._onDeliveryConfirmed(orderId)', 'dim');
+_out('      → orch._onDeliveryFailed(orderId, reason)', 'dim');
+_out('', 'blank');
+_out('  window.TENET_EXEC is exposed for ORCH wiring.', 'dim');
+_out('', 'blank');
+</script>
+</body>
+</html>

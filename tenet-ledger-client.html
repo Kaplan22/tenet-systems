@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TENET SYSTEMS — Clearing Ledger</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--bg1:#040D18;--bg2:#060F1E;
+  --bb:#6CBFEF;--bm:#2E7BB5;--bd:#153E60;--bk:#0A2438;
+  --gr:#2EBD7A;--gd:#1A6B46;--re:#D95050;--or:#C98A1A;--wh:#C2DFF2;
+  --glow:0 0 8px rgba(108,191,239,0.4);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--bm);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(0,0,0,0.5) 100%)}
+#shell{display:flex;flex-direction:column;height:100vh}
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:7px 20px;border-bottom:1px solid var(--bk);background:rgba(0,8,18,.9);z-index:10}
+#brand{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--bb);text-shadow:var(--glow)}
+#sub{font-size:9px;color:var(--bk);letter-spacing:.05em;margin-left:14px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;flex-shrink:0}
+.dot-off{background:var(--bd)}.dot-connecting{background:var(--or);animation:pulse 1s ease-in-out infinite}
+.dot-on{background:var(--gr);box-shadow:0 0 5px var(--gr);animation:pulse 2.4s ease-in-out infinite}
+.dot-err{background:var(--re)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+#conn-badge{font-size:10px;color:var(--bd);letter-spacing:.04em;display:flex;align-items:center;transition:color .4s}
+#conn-badge.connected{color:var(--gd)}
+#conn-badge.connecting{color:var(--or)}
+#conn-badge.error{color:var(--re)}
+#clk{font-size:10px;color:var(--bd)}
+#stats{flex-shrink:0;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--bk);background:var(--bg1)}
+.stat{padding:6px 12px;border-right:1px solid var(--bk)}.stat:last-child{border-right:none}
+.sl{font-size:9px;letter-spacing:.07em;color:var(--bd);text-transform:uppercase}
+.sv{font-size:14px;font-weight:700;color:var(--bb);text-shadow:var(--glow);margin-top:2px;transition:all .3s}
+.sv.off{color:var(--bk);text-shadow:none}.sv.flash{color:var(--gr)}
+.ss{font-size:9px;color:var(--bd);margin-top:1px}
+#body{flex:1;display:flex;min-height:0}
+#sheet-area{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--bk)}
+#tabs{flex-shrink:0;display:flex;align-items:stretch;border-bottom:1px solid var(--bk);background:var(--bg1);overflow-x:auto}
+#tabs::-webkit-scrollbar{height:2px}
+#tabs::-webkit-scrollbar-thumb{background:var(--bk)}
+.tab{padding:7px 14px;font-size:10px;letter-spacing:.06em;color:var(--bd);cursor:pointer;border-right:1px solid var(--bk);white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all .15s;user-select:none;flex-shrink:0}
+.tab:hover{background:var(--bg2);color:var(--bm)}
+.tab.active{background:var(--bg);color:var(--bb);text-shadow:var(--glow);border-bottom:2px solid var(--bb);margin-bottom:-1px}
+.tc{font-size:9px;padding:1px 5px;border-radius:2px;background:var(--bk);color:var(--bd);min-width:16px;text-align:center;transition:all .3s}
+.tab.active .tc{background:rgba(44,123,181,.2);color:var(--bb)}
+.tab-fi.active .tc{background:rgba(201,138,26,.15);color:var(--or)}
+.tab-lp.active .tc{background:rgba(46,189,122,.1);color:var(--gd)}
+#sheet-content{flex:1;overflow-y:auto;min-height:0;position:relative}
+#sheet-content::-webkit-scrollbar{width:2px}
+#sheet-content::-webkit-scrollbar-thumb{background:var(--bk)}
+.hdr-row{display:grid;padding:4px 16px;background:var(--bg1);border-bottom:1px solid var(--bk);position:sticky;top:0;z-index:2;gap:10px}
+.hc{font-size:9px;color:var(--bd);letter-spacing:.07em;text-transform:uppercase}
+.orow{display:grid;align-items:center;padding:6px 16px;border-bottom:1px solid rgba(10,36,56,.5);cursor:pointer;transition:background .1s;gap:10px;animation:rowin .15s ease-out}
+@keyframes rowin{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+.orow:hover{background:var(--bg2)}
+.orow.sel{background:var(--bg2);border-left:2px solid var(--bb)}
+.orow:not(.sel){border-left:2px solid transparent}
+.oid{font-size:10px;font-weight:700;color:var(--wh)}.oint{font-size:10px;color:var(--bm)}
+.oasset{font-size:10px;color:var(--wh)}.oamt{font-size:10px;color:var(--bb);font-weight:500}
+.olp{font-size:10px;color:var(--bd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.otime{font-size:9px;color:var(--bd)}
+.chip{font-size:8px;font-weight:700;letter-spacing:.05em;padding:2px 6px;border-radius:2px}
+.chip-live{background:rgba(44,123,181,.15);color:var(--bb);border:1px solid var(--bk)}
+.chip-del{background:rgba(201,138,26,.12);color:var(--or);border:1px solid rgba(201,138,26,.2);animation:blink 1.2s ease-in-out infinite}
+.chip-awt{background:rgba(46,189,122,.1);color:var(--gr);border:1px solid var(--gd)}
+.chip-cmp{background:rgba(46,189,122,.06);color:var(--gd);border:1px solid rgba(46,189,122,.1)}
+.chip-fail{background:rgba(217,80,80,.12);color:var(--re);border:1px solid rgba(217,80,80,.2)}
+.chip-insuf{background:rgba(217,80,80,.08);color:var(--re);border:1px solid rgba(217,80,80,.15)}
+.chip-rec{background:rgba(201,138,26,.08);color:var(--or);border:1px solid rgba(201,138,26,.15)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+.vault-block{border-bottom:1px solid rgba(10,36,56,.6)}
+.vault-summary{display:grid;align-items:center;padding:7px 16px;gap:10px;cursor:pointer;transition:background .1s}
+.vault-summary:hover{background:var(--bg2)}
+.vsname{font-size:11px;font-weight:700;color:var(--wh)}
+.vsbar-wrap{position:relative;height:5px;background:var(--bk);border-radius:3px;overflow:hidden}
+.vsbar-tot{position:absolute;left:0;top:0;height:100%;background:var(--bd);border-radius:3px}
+.vsbar-rsv{position:absolute;left:0;top:0;height:100%;border-radius:3px;transition:width .35s}
+.vsbar-rsv-fi{background:var(--or)}.vsbar-rsv-lp{background:var(--bm)}
+.vstatus{font-size:8px;font-weight:700;letter-spacing:.05em}
+.vs-active{color:var(--gd)}.vs-pending{color:var(--bd)}
+.rsv-orders{display:none;background:var(--bg1);border-top:1px solid rgba(10,36,56,.5)}
+.rsv-orders.open{display:block}
+.rsv-order-row{display:grid;align-items:center;padding:4px 28px;border-bottom:1px solid rgba(10,36,56,.3);gap:10px;font-size:10px}
+.rsv-order-row:last-child{border-bottom:none}
+.rso-id{color:var(--bm);font-weight:500}.rso-amt{color:var(--bb)}
+.lv-row{display:grid;align-items:center;padding:6px 16px;border-bottom:1px solid rgba(10,36,56,.5);gap:10px}
+.lv-row:hover{background:var(--bg2)}
+#dormant{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:none}
+#dormant.hidden{display:none}
+.dorm-icon{font-size:26px;color:var(--bk);font-weight:700}
+.dorm-l1{font-size:11px;color:var(--bd);letter-spacing:.1em}
+.dorm-l2{font-size:10px;color:var(--bk);letter-spacing:.04em}
+#detail{width:310px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+#dhdr{flex-shrink:0;padding:7px 14px;border-bottom:1px solid var(--bk);background:var(--bg1)}
+#dtitle{font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--bb)}
+#dbody{flex:1;overflow-y:auto}
+#dbody::-webkit-scrollbar{width:2px}
+#dbody::-webkit-scrollbar-thumb{background:var(--bk)}
+#dempty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--bk);font-size:10px;letter-spacing:.05em;flex-direction:column;gap:6px}
+.ds{padding:8px 14px;border-bottom:1px solid rgba(10,36,56,.4)}
+.dst{font-size:9px;letter-spacing:.1em;color:var(--bd);margin-bottom:5px;text-transform:uppercase}
+.dr{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid rgba(10,36,56,.25)}
+.dr:last-child{border-bottom:none}
+.dk{font-size:10px;color:var(--bd);flex:0 0 110px}
+.dv{font-size:10px;color:var(--wh);flex:1;word-break:break-all}
+.dv.bb{color:var(--bb)}.dv.gr{color:var(--gr)}.dv.or{color:var(--or)}.dv.re{color:var(--re)}
+.tl{display:flex;flex-direction:column;gap:4px}
+.tli{display:flex;align-items:flex-start;gap:6px;font-size:10px}
+.tld{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:2px}
+.tld.done{background:var(--gr)}.tld.cur{background:var(--bb);box-shadow:0 0 5px var(--bb);animation:pulse 1.4s infinite}.tld.pend{background:var(--bk);border:1px solid var(--bd)}
+.tll{color:var(--wh);flex:1}.tll.dim{color:var(--bk)}
+.tlt{color:var(--bd);font-size:9px;white-space:nowrap}
+.spr{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.splp{font-size:9px;color:var(--bd);flex:0 0 110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spbg{flex:1;height:3px;background:var(--bk);border-radius:2px;overflow:hidden}
+.spfill{height:100%;background:var(--bm);border-radius:2px}
+.sppct{font-size:9px;color:var(--bd);flex:0 0 28px;text-align:right}
+.ee{display:flex;gap:5px;padding:2px 0;border-bottom:1px solid rgba(10,36,56,.3);font-size:10px}
+.eets{color:var(--bk);font-size:9px;flex-shrink:0;white-space:nowrap}
+.eesrc{font-size:9px;padding:0 4px;border-radius:2px;flex-shrink:0}
+.eo{background:rgba(44,123,181,.12);color:var(--bb)}.ex{background:rgba(46,189,122,.08);color:var(--gd)}
+.es{background:rgba(201,138,26,.1);color:var(--or)}.er{background:rgba(201,138,26,.12);color:var(--or)}
+.eemsg{color:var(--bm);flex:1;word-break:break-word}
+.eemsg.bb{color:var(--bb)}.eemsg.gr{color:var(--gr)}.eemsg.or{color:var(--or)}.eemsg.re{color:var(--re)}
+#eng-log{flex-shrink:0;height:28px;border-top:1px solid var(--bk);background:var(--bg1);display:flex;align-items:center;overflow:hidden}
+.loge{display:flex;align-items:center;gap:6px;padding:0 12px;height:100%;border-right:1px solid var(--bk);flex-shrink:0;animation:logslide .18s ease-out}
+@keyframes logslide{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+.logets{font-size:9px;color:var(--bk);white-space:nowrap}
+.logesrc{font-size:9px;padding:1px 4px;border-radius:2px}
+.logemsg{font-size:10px;color:var(--bd);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+/* connection overlay */
+#conn-overlay{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(0,0,0,.85);backdrop-filter:blur(4px)}
+#conn-overlay.hidden{display:none}
+.conn-icon{font-size:24px;color:var(--bd);animation:pulse 1.2s ease-in-out infinite}
+.conn-text{font-size:12px;color:var(--bd);letter-spacing:.08em}
+.conn-sub{font-size:10px;color:var(--bk);letter-spacing:.04em}
+.conn-input-row{display:flex;gap:8px;margin-top:8px}
+.conn-input{background:var(--bg1);border:1px solid var(--bd);color:var(--wh);font-family:inherit;font-size:12px;padding:7px 12px;outline:none;width:260px;border-radius:2px}
+.conn-btn{padding:7px 16px;background:rgba(44,123,181,.15);border:1px solid var(--bm);color:var(--bb);font-family:inherit;font-size:11px;cursor:pointer;border-radius:2px}
+.conn-btn:hover{background:rgba(44,123,181,.25)}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="topbar">
+    <div style="display:flex;align-items:baseline">
+      <span id="brand">TENET SYSTEMS</span>
+      <span id="sub">Clearing Ledger · v1.1 · Confidential</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span id="conn-badge"><span class="dot dot-off" id="conn-dot"></span>DISCONNECTED</span>
+      <span id="clk"></span>
+    </div>
+  </div>
+
+  <div id="stats">
+    <div class="stat"><div class="sl">Live</div><div class="sv off" id="s-live">—</div><div class="ss">intent accepted</div></div>
+    <div class="stat"><div class="sl">Delivering</div><div class="sv off" id="s-del">—</div><div class="ss">in flight</div></div>
+    <div class="stat"><div class="sl">Awaiting sttl.</div><div class="sv off" id="s-awt">—</div><div class="ss">LP payout queued</div></div>
+    <div class="stat"><div class="sl">Completed</div><div class="sv off" id="s-cmp">—</div><div class="ss">fully settled</div></div>
+    <div class="stat"><div class="sl">FI reserved</div><div class="sv off" id="s-fi-rsv" style="font-size:12px">—</div><div class="ss">USDC locked</div></div>
+    <div class="stat"><div class="sl">Daily volume</div><div class="sv off" id="s-vol" style="font-size:12px">—</div><div class="ss">USDC notional</div></div>
+    <div class="stat"><div class="sl">Fees collected</div><div class="sv off" id="s-fee" style="font-size:12px">—</div><div class="ss">10bps · tiered</div></div>
+  </div>
+
+  <div id="body">
+    <div id="sheet-area">
+      <div id="tabs">
+        <div class="tab active"   data-sheet="LIVE"                onclick="switchTab('LIVE')">LIVE <span class="tc" id="tc-LIVE">0</span></div>
+        <div class="tab"          data-sheet="DELIVERING"          onclick="switchTab('DELIVERING')">DELIVERING <span class="tc" id="tc-DELIVERING">0</span></div>
+        <div class="tab"          data-sheet="AWAITING_SETTLEMENT" onclick="switchTab('AWAITING_SETTLEMENT')">AWAITING SETTLEMENT <span class="tc" id="tc-AWAITING_SETTLEMENT">0</span></div>
+        <div class="tab"          data-sheet="COMPLETED"           onclick="switchTab('COMPLETED')">COMPLETED <span class="tc" id="tc-COMPLETED">0</span></div>
+        <div class="tab"          data-sheet="FAILED"              onclick="switchTab('FAILED')">FAILED <span class="tc" id="tc-FAILED">0</span></div>
+        <div class="tab"          data-sheet="INSUFFICIENT"        onclick="switchTab('INSUFFICIENT')">INSUFFICIENT BALANCE <span class="tc" id="tc-INSUFFICIENT">0</span></div>
+        <div class="tab tab-fi"   data-sheet="FI_RESERVATIONS"     onclick="switchTab('FI_RESERVATIONS')">FI RESERVATIONS <span class="tc" id="tc-FI_RESERVATIONS">0</span></div>
+        <div class="tab tab-lp"   data-sheet="LP_RESERVATIONS"     onclick="switchTab('LP_RESERVATIONS')">LP RESERVATIONS <span class="tc" id="tc-LP_RESERVATIONS">0</span></div>
+        <div class="tab"          data-sheet="LP_VAULTS"           onclick="switchTab('LP_VAULTS')">LP VAULT BALANCES <span class="tc" id="tc-LP_VAULTS">0</span></div>
+      </div>
+      <div id="sheet-content">
+        <div id="dormant">
+          <div class="dorm-icon">◎</div>
+          <div class="dorm-l1" id="dormant-l1">CONNECTING TO ENGINE...</div>
+          <div class="dorm-l2" id="dormant-l2">ws://localhost:8080</div>
+        </div>
+      </div>
+    </div>
+    <div id="detail">
+      <div id="dhdr"><span id="dtitle">ORDER DETAIL · ENGINE EVENTS</span></div>
+      <div id="dbody"><div id="dempty"><span>no order selected</span><span style="font-size:9px;color:var(--bk)">select a row to inspect</span></div></div>
+    </div>
+  </div>
+
+  <div id="eng-log">
+    <div class="loge" style="color:var(--bk);font-size:10px;letter-spacing:.05em;border:none">connecting to engine...</div>
+  </div>
+</div>
+
+<!-- Connection overlay -->
+<div id="conn-overlay" class="hidden">
+  <div class="conn-icon">◎</div>
+  <div class="conn-text">CANNOT REACH ENGINE SERVER</div>
+  <div class="conn-sub">Make sure the Docker container is running on the configured address</div>
+  <div class="conn-input-row">
+    <input class="conn-input" id="ws-url-input" type="text" value="ws://localhost:8080" placeholder="ws://localhost:8080">
+    <button class="conn-btn" onclick="reconnect()">RECONNECT</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── UTILITIES ────────────────────────────────────────────────────
+const usd2 = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+const usd  = n => '$' + Math.round(n).toLocaleString('en-US');
+const num  = (n,dp=4) => n.toLocaleString('en-US', {minimumFractionDigits:dp,maximumFractionDigits:dp});
+const shrt = () => new Date().toISOString().slice(11,19);
+
+// ── LOCAL STATE (mirrors server state) ───────────────────────────
+const STATE = {
+  orders:     {},   // orderId → order
+  vaults:     {},   // vaultId → vault
+  events:     {},   // orderId → [events]
+  stats:      { live:0, delivering:0, awaiting:0, completed:0, failed:0, insufficient:0, fiReserved:0, vol:0, fees:0 },
+  registries: { fi:{}, lp:{}, lpRouting:[] },
+  connected:  false,
+  activated:  false,
+};
+
+// ── WEBSOCKET CONNECTION ──────────────────────────────────────────
+let ws = null;
+let reconnectTimer = null;
+let wsUrl = localStorage.getItem('tenet-ws-url') || 'ws://localhost:8080';
+
+function connect(url) {
+  wsUrl = url || wsUrl;
+  localStorage.setItem('tenet-ws-url', wsUrl);
+  document.getElementById('ws-url-input').value = wsUrl;
+  setConnectionStatus('connecting');
+
+  try {
+    ws = new WebSocket(wsUrl);
+  } catch(e) {
+    setConnectionStatus('error');
+    scheduleReconnect();
+    return;
+  }
+
+  ws.onopen = () => {
+    setConnectionStatus('connected');
+    document.getElementById('conn-overlay').classList.add('hidden');
+    clearTimeout(reconnectTimer);
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleMessage(msg);
+    } catch(err) {
+      console.error('WS parse error:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    setConnectionStatus('disconnected');
+    scheduleReconnect();
+  };
+
+  ws.onerror = () => {
+    setConnectionStatus('error');
+  };
+}
+
+function reconnect() {
+  const url = document.getElementById('ws-url-input').value.trim();
+  clearTimeout(reconnectTimer);
+  if (ws) { ws.onclose = null; ws.close(); }
+  connect(url);
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => {
+    if (!STATE.connected) {
+      document.getElementById('conn-overlay').classList.remove('hidden');
+      connect();
+    }
+  }, 3000);
+}
+
+function setConnectionStatus(status) {
+  const badge = document.getElementById('conn-badge');
+  const dot   = document.getElementById('conn-dot');
+  STATE.connected = status === 'connected';
+  switch(status) {
+    case 'connecting':
+      badge.className='connecting';
+      badge.innerHTML=`<span class="dot dot-connecting"></span>CONNECTING…`;
+      break;
+    case 'connected':
+      badge.className='connected';
+      badge.innerHTML=`<span class="dot dot-on"></span>CONNECTED TO ENGINE`;
+      break;
+    case 'disconnected':
+      badge.className='';
+      badge.innerHTML=`<span class="dot dot-off"></span>DISCONNECTED — RECONNECTING`;
+      break;
+    case 'error':
+      badge.className='error';
+      badge.innerHTML=`<span class="dot dot-err"></span>CONNECTION ERROR`;
+      break;
+  }
+}
+
+// ── MESSAGE HANDLER ───────────────────────────────────────────────
+function handleMessage(msg) {
+  switch(msg.type) {
+
+    case 'state:full': {
+      // Full state snapshot — received on connection
+      const d = msg.data;
+      STATE.orders     = d.orders || {};
+      STATE.vaults     = d.vaults || {};
+      STATE.events     = d.events || {};
+      STATE.stats      = d.stats  || STATE.stats;
+      STATE.registries = d.registries || STATE.registries;
+      if (Object.keys(STATE.orders).length > 0 && !STATE.activated) activate();
+      if (Object.keys(STATE.orders).length > 0) activate();
+      renderAll();
+      stripLog('SYS', `state synced · ${Object.keys(STATE.orders).length} orders · ${Object.keys(STATE.vaults).filter(k=>STATE.vaults[k]?.type==='LP_LIQUIDITY').length} LP vaults`, 'bb');
+      break;
+    }
+
+    case 'order:transition': {
+      const { orderId, order } = msg.data;
+      STATE.orders[orderId] = order;
+      if (!STATE.activated) activate();
+      renderAll();
+      stripLog('ORCH', `${orderId} → ${order.status}`, order.status==='COMPLETED'?'gr':order.status==='FAILED'?'re':order.status==='DELIVERING'?'or':'bb');
+      break;
+    }
+
+    case 'order:event': {
+      const { orderId, event } = msg.data;
+      if (!STATE.events[orderId]) STATE.events[orderId] = [];
+      STATE.events[orderId].unshift(event);
+      if (selectedId === orderId) UI.renderDetail(orderId);
+      const sc = event.src==='ORCH'?'ORCH':event.src==='EXEC'?'EXEC':event.src==='RESV'?'RESV':'SETT';
+      stripLog(sc, event.msg, event.cls);
+      break;
+    }
+
+    case 'vault:update': {
+      const { vaultId, vault } = msg.data;
+      STATE.vaults[vaultId] = vault;
+      if (['LP_VAULTS','FI_RESERVATIONS','LP_RESERVATIONS'].includes(activeTab)) UI.renderSheet(activeTab);
+      break;
+    }
+
+    case 'stats:update': {
+      STATE.stats = msg.data;
+      renderStats();
+      renderTabCounts();
+      break;
+    }
+
+    case 'fi:registered':
+    case 'lp:registered': {
+      stripLog('SYS', `${msg.type} · ${msg.data.identity}`, 'gr');
+      break;
+    }
+  }
+}
+
+// ── ACTIVATE ─────────────────────────────────────────────────────
+function activate() {
+  if (STATE.activated) return;
+  STATE.activated = true;
+  document.getElementById('dormant').classList.add('hidden');
+  ['s-live','s-del','s-awt','s-cmp','s-fi-rsv','s-vol','s-fee'].forEach(id =>
+    document.getElementById(id)?.classList.remove('off')
+  );
+}
+
+// ── RENDER ───────────────────────────────────────────────────────
+let activeTab = 'LIVE', selectedId = null;
+const _expanded = new Set();
+
+function renderAll() {
+  renderTabCounts();
+  renderStats();
+  UI.renderSheet(activeTab);
+  if (selectedId) UI.renderDetail(selectedId);
+}
+
+function renderTabCounts() {
+  const partitions = ['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED','FAILED','INSUFFICIENT','RECONCILIATION'];
+  partitions.forEach(p => {
+    const count = Object.values(STATE.orders).filter(o => o.status === p).length;
+    const el = document.getElementById('tc-' + p);
+    if (el) el.textContent = count;
+  });
+  const fiCount = Object.values(STATE.orders).filter(o => o.fiReservation && o.fiReservation.status === 'ACTIVE').length;
+  const lpCount = Object.values(STATE.orders).filter(o => o.lpReservations && o.lpReservations.some(r => r.status === 'ACTIVE')).length;
+  const fiE = document.getElementById('tc-FI_RESERVATIONS'); if (fiE) fiE.textContent = fiCount;
+  const lpE = document.getElementById('tc-LP_RESERVATIONS'); if (lpE) lpE.textContent = lpCount;
+  const lvE = document.getElementById('tc-LP_VAULTS');
+  if (lvE) lvE.textContent = Object.values(STATE.vaults).filter(v => v?.type === 'LP_LIQUIDITY').length;
+}
+
+function renderStats() {
+  const s = STATE.stats;
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el || el.textContent === val) return;
+    el.textContent = val;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 400);
+  };
+  set('s-live', s.live);
+  set('s-del',  s.delivering);
+  set('s-awt',  s.awaiting);
+  set('s-cmp',  s.completed);
+  set('s-fi-rsv', usd(s.fiReserved));
+  set('s-vol',    usd(s.vol));
+  set('s-fee',    usd(s.fees));
+}
+
+const UI = {
+  renderSheet(tab) {
+    const sc = document.getElementById('sheet-content');
+    if (tab === 'FI_RESERVATIONS') { sc.innerHTML = this._rsvSheet('FI'); return; }
+    if (tab === 'LP_RESERVATIONS') { sc.innerHTML = this._rsvSheet('LP'); return; }
+    if (tab === 'LP_VAULTS')       { sc.innerHTML = this._lpVaultSheet(); return; }
+    sc.innerHTML = this._orderSheet(tab);
+  },
+
+  _rsvSheet(side) {
+    const isFI = side === 'FI';
+    const barCls = isFI ? 'vsbar-rsv-fi' : 'vsbar-rsv-lp';
+    const orders = Object.values(STATE.orders).filter(o =>
+      isFI ? (o.fiReservation && o.fiReservation.status === 'ACTIVE')
+           : (o.lpReservations && o.lpReservations.some(r => r.status === 'ACTIVE'))
+    );
+    const byVault = {};
+    if (isFI) {
+      orders.forEach(o => { const vid = o.fiReservation.vaultId; if (!byVault[vid]) byVault[vid]={vaultId:vid,orders:[]}; byVault[vid].orders.push(o); });
+    } else {
+      orders.forEach(o => { o.lpReservations.filter(r=>r.status==='ACTIVE').forEach(r => { if (!byVault[r.vaultId]) byVault[r.vaultId]={vaultId:r.vaultId,orders:[]}; byVault[r.vaultId].orders.push({order:o,rsv:r}); }); });
+    }
+    if (!Object.keys(byVault).length) return `<div style="padding:40px;text-align:center;color:var(--bk);font-size:10px">no active ${side} reservations</div>`;
+    let h = '';
+    Object.entries(byVault).forEach(([vid, vd]) => {
+      const vault = STATE.vaults[vid]; if (!vault) return;
+      const totalRsv = isFI ? vd.orders.reduce((s,o)=>s+(o.fiReservation?.amount||0),0) : vd.orders.reduce((s,e)=>s+(e.rsv?.amount||0),0);
+      const pct = vault.balance > 0 ? (totalRsv / vault.balance * 100).toFixed(0) : 0;
+      const avail = vault.balance - vault.reserved;
+      const isExp = _expanded.has(vid);
+      h += `<div class="vault-block"><div class="vault-summary" style="grid-template-columns:200px 1fr 160px 70px" onclick="toggleVault('${vid}')">
+        <span class="vsname"><span style="font-size:9px;color:var(--bd);margin-right:6px">${isExp?'▼':'▶'}</span>${vid}</span>
+        <span>
+          <div style="font-size:9px;color:var(--bd);margin-bottom:3px">${num(vault.balance,2)} total · <span style="color:${isFI?'var(--or)':'var(--bm)'}">${num(totalRsv,2)}</span> reserved · <span style="color:var(--bb)">${num(avail,2)}</span> available</div>
+          <div class="vsbar-wrap"><div class="vsbar-tot" style="width:100%"></div><div class="vsbar-rsv ${barCls}" style="width:${pct}%"></div></div>
+        </span>
+        <span style="font-size:9px;text-align:right"><span style="color:${isFI?'var(--or)':'var(--bm)'}">${vd.orders.length}</span> active</span>
+        <span class="vstatus ${vault.status==='ACTIVE'?'vs-active':'vs-pending'}">${vault.status}</span>
+      </div>
+      <div class="rsv-orders${isExp?' open':''}" id="rsv-${vid}">`;
+      if (isFI) {
+        vd.orders.forEach(o => {
+          const r = o.fiReservation;
+          h += `<div class="rsv-order-row" style="grid-template-columns:130px 130px 1fr 80px" onclick="selectOrder('${o.id}')">
+            <span class="rso-id">${o.id}</span>
+            <span class="rso-amt">${usd2(r?.amount||0)} USDC</span>
+            <span style="font-size:9px;color:var(--bd)">${o.delivChain} · deadline ${o.deadline}s</span>
+            <span><span class="chip chip-live" style="font-size:8px">${o.status}</span></span>
+          </div>`;
+        });
+      } else {
+        vd.orders.forEach(({order:o,rsv:r}) => {
+          h += `<div class="rsv-order-row" style="grid-template-columns:130px 120px 1fr 80px" onclick="selectOrder('${o.id}')">
+            <span class="rso-id">${o.id}</span>
+            <span class="rso-amt">${num(r.amount,4)} ${o.asset||''}</span>
+            <span style="font-size:9px;color:var(--bd)">${r.vaultId}</span>
+            <span><span class="chip chip-live" style="font-size:8px">${o.status}</span></span>
+          </div>`;
+        });
+      }
+      h += `</div></div>`;
+    });
+    return h;
+  },
+
+  _lpVaultSheet() {
+    const vaults = Object.entries(STATE.vaults).filter(([,v]) => v?.type === 'LP_LIQUIDITY');
+    const cols = '190px 70px 70px 1fr 150px 80px 70px';
+    let h = `<div class="hdr-row" style="grid-template-columns:${cols}">
+      <span class="hc">VAULT</span><span class="hc">CHAIN</span><span class="hc">ASSET</span>
+      <span class="hc">BALANCE</span><span class="hc">AVAILABLE · RESERVED</span>
+      <span class="hc">STATUS</span><span class="hc">UPDATED</span>
+    </div>`;
+    if (!vaults.length) return h + '<div style="padding:30px;text-align:center;color:var(--bk);font-size:10px">no LP vaults registered</div>';
+    vaults.forEach(([id,v]) => {
+      const avail = v.balance - v.reserved;
+      const pct   = v.balance > 0 ? (v.reserved / v.balance * 100).toFixed(0) : 0;
+      h += `<div class="lv-row" style="grid-template-columns:${cols}">
+        <span style="font-size:10px;font-weight:700;color:var(--wh)">${id}</span>
+        <span style="font-size:9px;color:var(--bd)">${v.chain||'—'}</span>
+        <span style="font-size:9px;color:var(--bm)">${v.asset||'—'}</span>
+        <span>
+          <div style="font-size:9px;color:var(--bd);margin-bottom:3px">${num(v.balance,2)} total</div>
+          <div class="vsbar-wrap"><div class="vsbar-tot" style="width:100%"></div><div class="vsbar-rsv vsbar-rsv-lp" style="width:${pct}%"></div></div>
+        </span>
+        <span style="font-size:9px"><span style="color:var(--bb)">${num(avail,2)}</span><span style="color:var(--bd)"> avail</span>${v.reserved>0?`<span style="color:var(--bm)"> · ${num(v.reserved,2)} rsv</span>`:''}</span>
+        <span class="vstatus ${v.status==='ACTIVE'?'vs-active':'vs-pending'}">${v.status}</span>
+        <span style="font-size:9px;color:var(--bk)">${v.lastUpdated||''}</span>
+      </div>`;
+    });
+    return h;
+  },
+
+  _orderSheet(tab) {
+    const orders = Object.values(STATE.orders).filter(o => o.status === tab);
+    const cols = '140px 55px 65px 120px 1fr 75px 100px';
+    let h = `<div class="hdr-row" style="grid-template-columns:${cols}">
+      <span class="hc">ORDER ID</span><span class="hc">INTENT</span><span class="hc">ASSET</span>
+      <span class="hc">USDC AMOUNT</span><span class="hc">LP · VAULT</span>
+      <span class="hc">IN STATE</span><span class="hc">STATUS</span>
+    </div>`;
+    if (!orders.length)
+      return h + `<div style="padding:40px;text-align:center;color:var(--bk);font-size:10px;letter-spacing:.05em">no orders in ${tab.replace(/_/g,' ')}</div>`;
+    orders.slice().reverse().forEach(o => {
+      const sel = o.id === selectedId;
+      const cc = {LIVE:'chip chip-live',DELIVERING:'chip chip-del',AWAITING_SETTLEMENT:'chip chip-awt',COMPLETED:'chip chip-cmp',FAILED:'chip chip-fail',INSUFFICIENT:'chip chip-insuf',RECONCILIATION:'chip chip-rec'}[o.status]||'chip chip-live';
+      const lpLabel = o.fills&&o.fills.length>1 ? `<span style="color:var(--or)">SPLIT</span> ${o.fills.length}×` : o.fills&&o.fills[0] ? o.fills[0].vault : '<span style="color:var(--bk)">routing…</span>';
+      h += `<div class="orow${sel?' sel':''}" style="grid-template-columns:${cols}" onclick="selectOrder('${o.id}')">
+        <span class="oid">${o.id}</span>
+        <span class="oint">${(o.intent||'buy').toUpperCase()}</span>
+        <span class="oasset">${o.asset||'—'}</span>
+        <span class="oamt">${usd2(o.usdcAmount||0)}</span>
+        <span class="olp">${lpLabel}</span>
+        <span class="otime">${o.stateAt||'—'}</span>
+        <span><span class="${cc}">${o.status}</span></span>
+      </div>`;
+    });
+    return h;
+  },
+
+  renderDetail(id) {
+    const o = STATE.orders[id];
+    const db = document.getElementById('dbody');
+    const de = document.getElementById('dempty');
+    if (!o) { de.style.display='flex'; db.style.cssText=''; return; }
+    de.style.display = 'none'; db.style.display = 'block';
+    const sc2 = {COMPLETED:'gr',FAILED:'re',DELIVERING:'or',AWAITING_SETTLEMENT:'gr',LIVE:'bb',INSUFFICIENT:'re'}[o.status]||'bb';
+    let h = '';
+    h += `<div class="ds"><div class="dst">Order identity</div>`;
+    [
+      ['Order ID',     o.id],
+      ['FI',           o.tenetAddress+'  ·  '+(o.fi||'')],
+      ['Intent',       (o.intent||'buy').toUpperCase()],
+      ['Asset',        (o.asset||'')+'  on  '+(o.delivChain||'')],
+      ['USDC spend',   usd2(o.usdcAmount||0)],
+      ['Asset qty',    o.assetQty?num(o.assetQty,6)+' '+(o.asset||''):'pending'],
+      ['Eff. slippage',o.effSlipBps!=null?o.effSlipBps+'bps':'—'],
+      ['Tenet fee',    usd2(o.fee||0)],
+      ['Vault extract',usd2(o.total||0)],
+      ['Slip tolerance',(o.slipBps||50)+'bps'],
+      ['Deadline',     (o.deadline||'—')+'s'],
+      ['Sett. asset',  o.settlAsset||'—'],
+      ['Status',       `<span class="${sc2}">${o.status}</span>`],
+      ['Exec tx',      o.execTx||'—'],
+      ['Extract tx',   o.settlExtractTx||'—'],
+      ['Sett. tx',     o.settlTx||'—'],
+    ].forEach(([k,v]) => h += `<div class="dr"><div class="dk">${k}</div><div class="dv">${v}</div></div>`);
+    if (o.failReason) h += `<div class="dr"><div class="dk">Reason</div><div class="dv re">${o.failReason}</div></div>`;
+    if (o.failDetail) h += `<div class="dr"><div class="dk">Detail</div><div class="dv re" style="font-size:9px">${o.failDetail}</div></div>`;
+    h += '</div>';
+    if (o.fiReservation || o.lpReservations) {
+      h += `<div class="ds"><div class="dst">Reservation status</div>`;
+      if (o.fiReservation) {
+        const r = o.fiReservation;
+        const stCls = r.status==='ACTIVE'?'or':r.status==='STALE'?'re':'gr';
+        h += `<div class="dr"><div class="dk">FI vault</div><div class="dv or">${r.vaultId}</div></div>`;
+        h += `<div class="dr"><div class="dk">FI locked</div><div class="dv or">${usd2(r.amount)} USDC</div></div>`;
+        h += `<div class="dr"><div class="dk">FI rsv status</div><div class="dv ${stCls}">${r.status}</div></div>`;
+        if (r.releasedAt) h += `<div class="dr"><div class="dk">Released at</div><div class="dv gr">${r.releasedAt}</div></div>`;
+      }
+      if (o.lpReservations && o.lpReservations.length) {
+        h += `<div class="dr" style="margin-top:4px"><div class="dk">LP vaults</div><div class="dv">${o.lpReservations.length} reserved</div></div>`;
+        o.lpReservations.forEach(r => {
+          const stCls2 = r.status==='ACTIVE'?'bb':'gr';
+          h += `<div class="dr"><div class="dk" style="font-size:9px;padding-left:8px">${r.vaultId}</div><div class="dv ${stCls2}" style="font-size:9px">${num(r.amount,4)}  ·  ${r.status}</div></div>`;
+        });
+      }
+      h += '</div>';
+    }
+    if (o.fills && o.fills.length) {
+      h += `<div class="ds"><div class="dst">LP assignment</div>`;
+      if (o.fills.length === 1) {
+        const f = o.fills[0];
+        h += `<div class="dr"><div class="dk">LP vault</div><div class="dv bb">${f.vault}</div></div>`;
+        h += `<div class="dr"><div class="dk">LP Tenet addr</div><div class="dv">${f.lp}</div></div>`;
+        h += `<div class="dr"><div class="dk">Chain</div><div class="dv">${f.chain}</div></div>`;
+        h += `<div class="dr"><div class="dk">Slippage</div><div class="dv">${f.slipBps}bps</div></div>`;
+      } else {
+        h += `<div class="dr"><div class="dk">Split</div><div class="dv or">MULTI-LP (${o.fills.length})</div></div>`;
+        h += '</div><div class="ds"><div class="dst">Split allocation</div>';
+        const tot = o.fills.reduce((s,f) => s+f.qty, 0);
+        o.fills.forEach(f => {
+          const pct = ((f.qty/tot)*100).toFixed(1);
+          h += `<div class="spr"><span class="splp">${f.vault}</span><div class="spbg"><div class="spfill" style="width:${pct}%"></div></div><span class="sppct">${pct}%</span></div>`;
+        });
+      }
+      h += '</div>';
+    }
+    const ALL = ['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED'];
+    const tmap = {}; (o.transitions||[]).forEach(t => tmap[t.state]=t);
+    const display = ['FAILED','INSUFFICIENT','RECONCILIATION'].includes(o.status)
+      ? [...ALL.slice(0, Math.max(1,(o.transitions||[]).filter(t=>!['FAILED','INSUFFICIENT','RECONCILIATION'].includes(t.state)).length)), o.status]
+      : ALL;
+    h += `<div class="ds"><div class="dst">Lifecycle</div><div class="tl">`;
+    display.forEach(s => {
+      const t = tmap[s], past = t&&s!==o.status, cur = s===o.status;
+      const dot = past?'done':cur?'cur':'pend';
+      h += `<div class="tli"><div class="tld ${dot}"></div><div class="tll${!past&&!cur?' dim':''}">${s}</div><div class="tlt">${t?t.at:''}</div></div>`;
+    });
+    h += '</div></div>';
+    const evts = STATE.events[id] || [];
+    h += `<div class="ds"><div class="dst">Engine events (${evts.length})</div>`;
+    if (!evts.length) h += '<div style="color:var(--bk);font-size:10px;padding:3px 0">no events</div>';
+    else evts.forEach(e => {
+      const src2 = e.src==='ORCH'?'eo':e.src==='EXEC'?'ex':e.src==='RESV'?'er':'es';
+      h += `<div class="ee"><span class="eets">${e.ts}</span><span class="eesrc ${src2}">${e.src}</span><span class="eemsg ${e.cls||''}">${e.msg}</span></div>`;
+    });
+    h += '</div>';
+    db.innerHTML = h;
+    document.getElementById('dtitle').textContent = id + ' · ' + o.status;
+  },
+};
+
+function selectOrder(id) {
+  selectedId = id;
+  UI.renderSheet(activeTab);
+  UI.renderDetail(id);
+}
+
+function toggleVault(vid) {
+  if (_expanded.has(vid)) _expanded.delete(vid); else _expanded.add(vid);
+  UI.renderSheet(activeTab);
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.sheet === tab));
+  UI.renderSheet(tab);
+}
+
+// ── ENGINE LOG STRIP ─────────────────────────────────────────────
+let _logEls = [], _logInit = false;
+function stripLog(src, msg, cls='') {
+  const strip = document.getElementById('eng-log');
+  if (!_logInit) { strip.innerHTML = ''; _logInit = true; }
+  const sc = src==='ORCH'?'eo':src==='EXEC'?'ex':src==='RESV'?'er':src==='SYS'?'eo':'es';
+  const el = document.createElement('div');
+  el.className = 'loge';
+  el.innerHTML = `<span class="logets">${shrt()}</span><span class="logesrc ${sc}">${src}</span><span class="logemsg ${cls||''}">${msg.length>60?msg.slice(0,60)+'…':msg}</span>`;
+  strip.insertBefore(el, strip.firstChild);
+  _logEls.push(el);
+  if (_logEls.length > 8) { _logEls.shift().remove(); }
+}
+
+// ── CLOCK ────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clk').textContent = new Date().toUTCString().slice(17,25) + ' UTC';
+}, 1000);
+
+// ── PERIODIC REFRESH for reservation sheets ───────────────────────
+setInterval(() => {
+  if (['LP_VAULTS','FI_RESERVATIONS','LP_RESERVATIONS'].includes(activeTab))
+    UI.renderSheet(activeTab);
+}, 4000);
+
+// ── EXPOSE FOR PORTALS ────────────────────────────────────────────
+// Portals can call: window.TENET_WS.send({ type: 'fi:register', data: {...} })
+window.TENET_WS = {
+  send: (msg) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg));
+    } else {
+      console.warn('TENET_WS: not connected');
+    }
+  },
+  getState: () => STATE,
+};
+
+// ── INITIAL CONNECTION ────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>

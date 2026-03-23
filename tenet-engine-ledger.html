@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TENET SYSTEMS — Orchestration Engine · Clearing Ledger</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--bg1:#040D18;--bg2:#060F1E;--bg3:#09182E;
+  --bb:#6CBFEF;--bm:#2E7BB5;--bd:#153E60;--bk:#0A2438;
+  --gr:#2EBD7A;--gd:#1A6B46;--re:#D95050;--or:#C98A1A;--wh:#C2DFF2;
+  --glow:0 0 8px rgba(108,191,239,0.4);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--bm);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(0,0,0,0.5) 100%)}
+
+/* ── SHELL ── */
+#shell{display:flex;flex-direction:column;height:100vh}
+
+/* ── TOP BAR ── */
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:7px 20px;border-bottom:1px solid var(--bk);background:rgba(0,8,18,.9);z-index:10}
+#brand{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--bb);text-shadow:var(--glow)}
+#sub{font-size:9px;color:var(--bk);letter-spacing:.05em;margin-left:14px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;flex-shrink:0}
+.dot-off{background:var(--bd)}
+.dot-on{background:var(--gr);box-shadow:0 0 5px var(--gr);animation:pulse 2.4s ease-in-out infinite}
+.dot-warn{background:var(--or);box-shadow:0 0 5px var(--or)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+#eng-badge{font-size:10px;color:var(--bd);letter-spacing:.04em;display:flex;align-items:center;transition:color .4s}
+#eng-badge.active{color:var(--gd)}
+#clk{font-size:10px;color:var(--bd)}
+
+/* ── STATS ── */
+#stats{flex-shrink:0;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--bk);background:var(--bg1)}
+.stat{padding:6px 12px;border-right:1px solid var(--bk)}
+.stat:last-child{border-right:none}
+.sl{font-size:9px;letter-spacing:.07em;color:var(--bd);text-transform:uppercase}
+.sv{font-size:14px;font-weight:700;color:var(--bb);text-shadow:var(--glow);margin-top:2px;transition:all .3s}
+.sv.off{color:var(--bk);text-shadow:none}
+.sv.flash{color:var(--gr)}
+.ss{font-size:9px;color:var(--bd);margin-top:1px}
+
+/* ── BODY ── */
+#body{flex:1;display:flex;min-height:0}
+
+/* ── SHEET AREA ── */
+#sheet-area{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--bk)}
+
+/* ── TABS ── */
+#tabs{flex-shrink:0;display:flex;align-items:stretch;border-bottom:1px solid var(--bk);background:var(--bg1);overflow-x:auto}
+#tabs::-webkit-scrollbar{height:2px}
+#tabs::-webkit-scrollbar-thumb{background:var(--bk)}
+.tab{padding:7px 14px;font-size:10px;letter-spacing:.06em;color:var(--bd);cursor:pointer;border-right:1px solid var(--bk);white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all .15s;user-select:none;flex-shrink:0}
+.tab:hover{background:var(--bg2);color:var(--bm)}
+.tab.active{background:var(--bg);color:var(--bb);text-shadow:var(--glow);border-bottom:2px solid var(--bb);margin-bottom:-1px}
+.tc{font-size:9px;padding:1px 5px;border-radius:2px;background:var(--bk);color:var(--bd);min-width:16px;text-align:center;transition:all .3s}
+.tab.active .tc{background:rgba(44,123,181,.2);color:var(--bb)}
+.tab-rsv-fi.active .tc{background:rgba(201,138,26,.15);color:var(--or)}
+.tab-rsv-lp.active .tc{background:rgba(46,189,122,.1);color:var(--gd)}
+
+/* ── SHEET ── */
+#sheet-content{flex:1;overflow-y:auto;min-height:0;position:relative}
+#sheet-content::-webkit-scrollbar{width:2px}
+#sheet-content::-webkit-scrollbar-thumb{background:var(--bk)}
+
+/* ── COLUMN HEADERS ── */
+.hdr-row{display:grid;padding:4px 16px;background:var(--bg1);border-bottom:1px solid var(--bk);position:sticky;top:0;z-index:2;gap:10px}
+.hc{font-size:9px;color:var(--bd);letter-spacing:.07em;text-transform:uppercase}
+
+/* ── ORDER ROW ── */
+.orow{display:grid;align-items:center;padding:6px 16px;border-bottom:1px solid rgba(10,36,56,.5);cursor:pointer;transition:background .1s;gap:10px;animation:rowin .15s ease-out}
+@keyframes rowin{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+.orow:hover{background:var(--bg2)}
+.orow.sel{background:var(--bg2);border-left:2px solid var(--bb)}
+.orow:not(.sel){border-left:2px solid transparent}
+.oid{font-size:10px;font-weight:700;color:var(--wh)}
+.oint{font-size:10px;color:var(--bm)}
+.oasset{font-size:10px;color:var(--wh)}
+.oamt{font-size:10px;color:var(--bb);font-weight:500}
+.olp{font-size:10px;color:var(--bd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.otime{font-size:9px;color:var(--bd)}
+.chip{font-size:8px;font-weight:700;letter-spacing:.05em;padding:2px 6px;border-radius:2px}
+.chip-live{background:rgba(44,123,181,.15);color:var(--bb);border:1px solid var(--bk)}
+.chip-del{background:rgba(201,138,26,.12);color:var(--or);border:1px solid rgba(201,138,26,.2);animation:blink 1.2s ease-in-out infinite}
+.chip-awt{background:rgba(46,189,122,.1);color:var(--gr);border:1px solid var(--gd)}
+.chip-cmp{background:rgba(46,189,122,.06);color:var(--gd);border:1px solid rgba(46,189,122,.1)}
+.chip-fail{background:rgba(217,80,80,.12);color:var(--re);border:1px solid rgba(217,80,80,.2)}
+.chip-rec{background:rgba(201,138,26,.08);color:var(--or);border:1px solid rgba(201,138,26,.15)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── RESERVATION SHEETS ── */
+.vault-block{border-bottom:1px solid rgba(10,36,56,.6)}
+.vault-summary{display:grid;align-items:center;padding:7px 16px;gap:10px;cursor:pointer;transition:background .1s}
+.vault-summary:hover{background:var(--bg2)}
+.vsname{font-size:11px;font-weight:700;color:var(--wh)}
+.vsmeta{font-size:9px;color:var(--bd)}
+.vsbar-wrap{position:relative;height:5px;background:var(--bk);border-radius:3px;overflow:hidden}
+.vsbar-tot{position:absolute;left:0;top:0;height:100%;background:var(--bd);border-radius:3px}
+.vsbar-rsv{position:absolute;left:0;top:0;height:100%;border-radius:3px;transition:width .35s}
+.vsbar-rsv-fi{background:var(--or)}
+.vsbar-rsv-lp{background:var(--bm)}
+.vsnums{font-size:9px;text-align:right;white-space:nowrap}
+.vstatus{font-size:8px;font-weight:700;letter-spacing:.05em}
+.vs-active{color:var(--gd)}.vs-pending{color:var(--bd)}
+.rsv-orders{display:none;background:var(--bg1);border-top:1px solid rgba(10,36,56,.5)}
+.rsv-orders.open{display:block}
+.rsv-order-row{display:grid;align-items:center;padding:4px 28px;border-bottom:1px solid rgba(10,36,56,.3);gap:10px;font-size:10px}
+.rsv-order-row:last-child{border-bottom:none}
+.rso-id{color:var(--bm);font-weight:500}
+.rso-amt{color:var(--bb)}
+.rso-age{color:var(--bd)}
+.rso-dead{font-size:9px}
+.rso-dead.warn{color:var(--or)}.rso-dead.ok{color:var(--gd)}.rso-dead.stale{color:var(--re)}
+.expand-arrow{font-size:9px;color:var(--bd);transition:transform .2s;display:inline-block;user-select:none}
+.expand-arrow.open{transform:rotate(90deg)}
+
+/* ── LP VAULT SHEET ── */
+.lv-row{display:grid;align-items:center;padding:6px 16px;border-bottom:1px solid rgba(10,36,56,.5);gap:10px}
+.lv-row:hover{background:var(--bg2)}
+
+/* ── DORMANT ── */
+#dormant{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;pointer-events:none}
+#dormant.hidden{display:none}
+.dorm-icon{font-size:26px;color:var(--bk);font-weight:700}
+.dorm-l1{font-size:11px;color:var(--bd);letter-spacing:.1em}
+.dorm-l2{font-size:10px;color:var(--bk);letter-spacing:.04em}
+
+/* ── DETAIL ── */
+#detail{width:300px;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+#dhdr{flex-shrink:0;padding:7px 14px;border-bottom:1px solid var(--bk);background:var(--bg1)}
+#dtitle{font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--bb)}
+#dbody{flex:1;overflow-y:auto}
+#dbody::-webkit-scrollbar{width:2px}
+#dbody::-webkit-scrollbar-thumb{background:var(--bk)}
+#dempty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--bk);font-size:10px;letter-spacing:.05em;flex-direction:column;gap:6px}
+
+.ds{padding:8px 14px;border-bottom:1px solid rgba(10,36,56,.4)}
+.dst{font-size:9px;letter-spacing:.1em;color:var(--bd);margin-bottom:5px;text-transform:uppercase}
+.dr{display:flex;gap:6px;padding:2px 0;border-bottom:1px solid rgba(10,36,56,.25)}
+.dr:last-child{border-bottom:none}
+.dk{font-size:10px;color:var(--bd);flex:0 0 108px}
+.dv{font-size:10px;color:var(--wh);flex:1;word-break:break-all}
+.dv.bb{color:var(--bb)}.dv.gr{color:var(--gr)}.dv.or{color:var(--or)}.dv.re{color:var(--re)}
+
+.tl{display:flex;flex-direction:column;gap:4px}
+.tli{display:flex;align-items:flex-start;gap:6px;font-size:10px}
+.tld{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:2px}
+.tld.done{background:var(--gr)}.tld.cur{background:var(--bb);box-shadow:0 0 5px var(--bb);animation:pulse 1.4s infinite}.tld.pend{background:var(--bk);border:1px solid var(--bd)}
+.tll{color:var(--wh);flex:1}.tll.dim{color:var(--bk)}
+.tlt{color:var(--bd);font-size:9px;white-space:nowrap}
+
+.spr{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.splp{font-size:9px;color:var(--bd);flex:0 0 108px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spbg{flex:1;height:3px;background:var(--bk);border-radius:2px;overflow:hidden}
+.spfill{height:100%;background:var(--bm);border-radius:2px}
+.sppct{font-size:9px;color:var(--bd);flex:0 0 26px;text-align:right}
+
+.ee{display:flex;gap:5px;padding:2px 0;border-bottom:1px solid rgba(10,36,56,.3);font-size:10px}
+.eets{color:var(--bk);font-size:9px;flex-shrink:0;white-space:nowrap}
+.eesrc{font-size:9px;padding:0 4px;border-radius:2px;flex-shrink:0}
+.eo{background:rgba(44,123,181,.12);color:var(--bb)}
+.ex{background:rgba(46,189,122,.08);color:var(--gd)}
+.es{background:rgba(201,138,26,.08);color:var(--or)}
+.er{background:rgba(201,138,26,.12);color:var(--or)}
+.eemsg{color:var(--bm);flex:1;word-break:break-word}
+.eemsg.bb{color:var(--bb)}.eemsg.gr{color:var(--gr)}.eemsg.or{color:var(--or)}.eemsg.re{color:var(--re)}
+
+/* ── ENGINE LOG ── */
+#eng-log{flex-shrink:0;height:28px;border-top:1px solid var(--bk);background:var(--bg1);display:flex;align-items:center;overflow:hidden}
+.loge{display:flex;align-items:center;gap:6px;padding:0 12px;height:100%;border-right:1px solid var(--bk);flex-shrink:0;animation:logslide .18s ease-out}
+@keyframes logslide{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+.logets{font-size:9px;color:var(--bk);white-space:nowrap}
+.logesrc{font-size:9px;padding:1px 4px;border-radius:2px}
+.logemsg{font-size:10px;color:var(--bd);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <div id="topbar">
+    <div style="display:flex;align-items:baseline">
+      <span id="brand">TENET SYSTEMS</span>
+      <span id="sub">Orchestration Engine · Clearing Ledger · v1.1 · Confidential</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px">
+      <span id="eng-badge"><span class="dot dot-off" id="eng-dot"></span>ENGINE DORMANT — AWAITING INTENT</span>
+      <span id="clk"></span>
+    </div>
+  </div>
+
+  <div id="stats">
+    <div class="stat"><div class="sl">Live</div><div class="sv off" id="s-live">—</div><div class="ss">intent accepted</div></div>
+    <div class="stat"><div class="sl">Delivering</div><div class="sv off" id="s-del">—</div><div class="ss">in flight</div></div>
+    <div class="stat"><div class="sl">Awaiting sttl.</div><div class="sv off" id="s-awt">—</div><div class="ss">LP payout queued</div></div>
+    <div class="stat"><div class="sl">Completed</div><div class="sv off" id="s-cmp">—</div><div class="ss">fully settled</div></div>
+    <div class="stat"><div class="sl">FI reserved</div><div class="sv off" id="s-fi-rsv" style="font-size:12px">—</div><div class="ss">USDC locked</div></div>
+    <div class="stat"><div class="sl">Daily volume</div><div class="sv off" id="s-vol" style="font-size:12px">—</div><div class="ss">USDC notional</div></div>
+    <div class="stat"><div class="sl">Fees collected</div><div class="sv off" id="s-fee" style="font-size:12px">—</div><div class="ss">10bps · tiered</div></div>
+  </div>
+
+  <div id="body">
+    <div id="sheet-area">
+      <div id="tabs">
+        <div class="tab active"      data-sheet="LIVE"                onclick="switchTab('LIVE')">LIVE <span class="tc" id="tc-LIVE">0</span></div>
+        <div class="tab"             data-sheet="DELIVERING"          onclick="switchTab('DELIVERING')">DELIVERING <span class="tc" id="tc-DELIVERING">0</span></div>
+        <div class="tab"             data-sheet="AWAITING_SETTLEMENT" onclick="switchTab('AWAITING_SETTLEMENT')">AWAITING SETTLEMENT <span class="tc" id="tc-AWAITING_SETTLEMENT">0</span></div>
+        <div class="tab"             data-sheet="COMPLETED"           onclick="switchTab('COMPLETED')">COMPLETED <span class="tc" id="tc-COMPLETED">0</span></div>
+        <div class="tab"             data-sheet="FAILED"              onclick="switchTab('FAILED')">FAILED <span class="tc" id="tc-FAILED">0</span></div>
+        <div class="tab"             data-sheet="RECONCILIATION"      onclick="switchTab('RECONCILIATION')">RECONCILIATION <span class="tc" id="tc-RECONCILIATION">0</span></div>
+        <div class="tab tab-rsv-fi"  data-sheet="FI_RESERVATIONS"    onclick="switchTab('FI_RESERVATIONS')">FI RESERVATIONS <span class="tc" id="tc-FI_RESERVATIONS">0</span></div>
+        <div class="tab tab-rsv-lp"  data-sheet="LP_RESERVATIONS"    onclick="switchTab('LP_RESERVATIONS')">LP RESERVATIONS <span class="tc" id="tc-LP_RESERVATIONS">0</span></div>
+        <div class="tab"             data-sheet="LP_VAULTS"           onclick="switchTab('LP_VAULTS')">LP VAULT BALANCES <span class="tc" id="tc-LP_VAULTS">0</span></div>
+      </div>
+      <div id="sheet-content">
+        <div id="dormant">
+          <div class="dorm-icon">◎</div>
+          <div class="dorm-l1">ORCHESTRATION ENGINE DORMANT</div>
+          <div class="dorm-l2">no intents received · ledger empty · vaults registered</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="detail">
+      <div id="dhdr"><span id="dtitle">ORDER DETAIL · ENGINE EVENTS</span></div>
+      <div id="dbody"><div id="dempty"><span>no order selected</span><span style="font-size:9px;color:var(--bk)">select a row to inspect</span></div></div>
+    </div>
+  </div>
+
+  <div id="eng-log">
+    <div class="loge" style="color:var(--bk);font-size:10px;letter-spacing:.05em;border:none">engine log · dormant</div>
+  </div>
+
+</div>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════
+const usd2 = n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const usd  = n=>'$'+Math.round(n).toLocaleString('en-US');
+const num  = (n,dp=4)=>n.toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const shrt = ()=>new Date().toISOString().slice(11,19);
+const wait = ms=>new Promise(r=>setTimeout(r,ms));
+const rnd  = (a,b)=>a+Math.random()*(b-a);
+function txHash(){const h='0123456789abcdef';let s='0x';for(let i=0;i<8;i++)s+=h[Math.floor(Math.random()*16)];return s+'…'+h[Math.floor(Math.random()*16)]+h[Math.floor(Math.random()*16)]+h[Math.floor(Math.random()*16)]+h[Math.floor(Math.random()*16)];}
+let _oc=93847590;
+const nextId=()=>'ORD_'+(++_oc);
+
+// ═══════════════════════════════════════════════════════════════════
+// EVENT BUS
+// ═══════════════════════════════════════════════════════════════════
+const Bus={
+  _l:{},
+  on(ev,fn){(this._l[ev]=this._l[ev]||[]).push(fn);return this;},
+  emit(ev,d){(this._l[ev]||[]).forEach(fn=>fn(d));},
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// CHAIN TIMEOUT REGISTRY
+// ─────────────────────────────────────────────────────────────────
+// Replaces the whitepaper's flat 60s deadline.
+// Each value = reservation window in seconds for that chain.
+// Cross-chain orders use max(source, dest) — gives the slower
+// chain its full window.
+// FIs may extend via intent.deadline but cannot shorten below floor.
+//
+// [CONFIGURABLE] — update these values as chain characteristics
+// change (e.g. ETH post-PBS, new L2s, bridge protocol upgrades).
+// ═══════════════════════════════════════════════════════════════════
+const CHAIN_TIMEOUTS = {
+  SOL:     15,   // 400ms blocks, near-instant finality
+  ARB:     30,   // 250ms Nitro blocks
+  BASE:    30,   // OP stack, 2s blocks
+  POLYGON: 45,   // 2s blocks, PBFT finality
+  ETH:     90,   // 12s blocks, 7-confirmation standard
+  OPTIMISM:30,
+  AVALANCHE:20,
+  DEFAULT: 60,   // fallback for unregistered chains
+};
+
+function chainTimeout(chain){
+  return CHAIN_TIMEOUTS[chain.toUpperCase()] ?? CHAIN_TIMEOUTS.DEFAULT;
+}
+
+// Derive reservation deadline from intent chains.
+// cross-chain = max(delivChain, settlChain) — more lenient,
+// gives the slower chain its full window.
+// FI-provided deadline acts as a floor extension, never a ceiling.
+function deriveDeadline(delivChain, settlChain, fiDeadline=0){
+  const floor = Math.max(chainTimeout(delivChain), chainTimeout(settlChain));
+  // FI can only extend, not shorten
+  return Math.max(floor, fiDeadline);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT PROVIDER — abstract interface
+// ─────────────────────────────────────────────────────────────────
+// [FIREBLOCKS INTEGRATION POINT]
+// Each method = one Fireblocks Policy Engine call:
+//   checkBalance   → GET /v1/vault/accounts/{id}/asset/{assetId}
+//   reserve        → internal ledger lock (co-sign policy enforces it)
+//   release        → internal ledger release
+//   cosignTransfer → POST /v1/transactions (TAP co-sign policy)
+//
+// To wire Fireblocks:
+//   1. Portal registers: workspaceApiKey, vaultAccountId, cosignerKey
+//   2. FireblocksVaultProvider implements these same four methods
+//   3. VAULT_REGISTRY[id].provider = new FireblocksVaultProvider(config)
+//   4. Nothing in the engines changes.
+// ═══════════════════════════════════════════════════════════════════
+class MockVaultProvider {
+  async checkBalance(vaultId){
+    const v=VAULT_REGISTRY[vaultId];
+    if(!v)throw new Error('VAULT_NOT_FOUND:'+vaultId);
+    await wait(rnd(25,60));
+    return v.balance-v.reserved;
+  }
+  async reserve(vaultId,amount,orderId){
+    const v=VAULT_REGISTRY[vaultId];
+    if(!v)throw new Error('VAULT_NOT_FOUND:'+vaultId);
+    await wait(15);
+    const avail=v.balance-v.reserved;
+    if(avail<amount)return{ok:false,available:avail};
+    v.reserved+=amount;
+    v.reservations[orderId]={amount,at:shrt(),orderId};
+    v.lastUpdated=shrt();
+    Bus.emit('vault:update',{vaultId});
+    return{ok:true,available:v.balance-v.reserved};
+  }
+  async release(vaultId,orderId){
+    const v=VAULT_REGISTRY[vaultId];
+    if(!v)return;
+    await wait(10);
+    const r=v.reservations[orderId];
+    if(!r)return;
+    v.reserved=Math.max(0,v.reserved-r.amount);
+    delete v.reservations[orderId];
+    v.lastUpdated=shrt();
+    Bus.emit('vault:update',{vaultId});
+  }
+  async cosignTransfer(vaultId,to,amount){
+    const v=VAULT_REGISTRY[vaultId];
+    if(!v)throw new Error('VAULT_NOT_FOUND:'+vaultId);
+    await wait(rnd(80,190));
+    v.balance-=amount;
+    v.lastUpdated=shrt();
+    const tx=txHash();
+    Bus.emit('vault:update',{vaultId});
+    return tx;
+  }
+}
+const VaultProvider=new MockVaultProvider();
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT REGISTRY
+// ─────────────────────────────────────────────────────────────────
+// status: ACTIVE          — connected, engine can read/write
+//         PENDING_CUSTODY — socket open, awaiting portal connection
+// ═══════════════════════════════════════════════════════════════════
+const VAULT_REGISTRY={
+  // ── FI SETTLEMENT VAULTS — [FI PORTAL CONNECTION POINT] ──────
+  'GoldmanSettlementVault':  {type:'FI_SETTLEMENT',fi:'GoldmanSachs_x800', balance:10_000_000,reserved:0,reservations:{},status:'ACTIVE',         custodian:'Fireblocks',lastUpdated:shrt()},
+  'JPMorganSettlementVault': {type:'FI_SETTLEMENT',fi:'JPMorgan_x240',     balance:25_000_000,reserved:0,reservations:{},status:'ACTIVE',         custodian:'Fireblocks',lastUpdated:shrt()},
+  'FidelitySettlementVault': {type:'FI_SETTLEMENT',fi:'Fidelity_x510',     balance:5_000_000, reserved:0,reservations:{},status:'PENDING_CUSTODY',custodian:'Copper',    lastUpdated:shrt()},
+  'BlackRockSettlementVault':{type:'FI_SETTLEMENT',fi:'BlackRock_x320',    balance:50_000_000,reserved:0,reservations:{},status:'ACTIVE',         custodian:'Fireblocks',lastUpdated:shrt()},
+
+  // ── LP LIQUIDITY VAULTS — [LP PORTAL CONNECTION POINT] ───────
+  // LPName_Chain encodes LP identity + exec chain in one field
+  'Wintermute_SOL':    {type:'LP_LIQUIDITY',lp:'Wintermute',chain:'SOL',    asset:'ETH', balance:5776,     reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Wintermute_ETH':    {type:'LP_LIQUIDITY',lp:'Wintermute',chain:'ETH',    asset:'ETH', balance:8200,     reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Wintermute_ARB':    {type:'LP_LIQUIDITY',lp:'Wintermute',chain:'ARB',    asset:'ETH', balance:4100,     reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Galaxy_SOL':        {type:'LP_LIQUIDITY',lp:'Galaxy',    chain:'SOL',    asset:'ETH', balance:5130,     reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Galaxy_ARB':        {type:'LP_LIQUIDITY',lp:'Galaxy',    chain:'ARB',    asset:'USDC',balance:3_500_000,reserved:0,reservations:{},status:'ACTIVE',custodian:'Copper',    lastUpdated:shrt()},
+  'Galaxy_BASE':       {type:'LP_LIQUIDITY',lp:'Galaxy',    chain:'BASE',   asset:'USDC',balance:2_800_000,reserved:0,reservations:{},status:'ACTIVE',custodian:'Copper',    lastUpdated:shrt()},
+  'Cumberland_SOL':    {type:'LP_LIQUIDITY',lp:'Cumberland',chain:'SOL',    asset:'ETH', balance:4094,     reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Cumberland_ETH':    {type:'LP_LIQUIDITY',lp:'Cumberland',chain:'ETH',    asset:'BTC', balance:320,      reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  'Cumberland_POLYGON':{type:'LP_LIQUIDITY',lp:'Cumberland',chain:'POLYGON',asset:'USDC',balance:1_200_000,reserved:0,reservations:{},status:'ACTIVE',custodian:'Copper',    lastUpdated:shrt()},
+
+  // ── TENET SYSTEM VAULTS — [TENET ADMIN PORTAL CONNECTION POINT]
+  'TenetSettlementVault':{type:'TENET_SETTLEMENT',balance:0,reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()},
+  // TenetAggregation_{orderId} — ephemeral, created/destroyed by engine per multi-LP order
+};
+
+// ── FI REGISTRY ──────────────────────────────────────────────────
+const FI_REGISTRY={
+  'GoldmanSachs_x800':{identity:'Goldman Sachs Asset Mgmt',vault:'GoldmanSettlementVault', tier:3},
+  'JPMorgan_x240':    {identity:'JPMorgan Asset Management',vault:'JPMorganSettlementVault',tier:3},
+  'Fidelity_x510':    {identity:'Fidelity Investments',     vault:'FidelitySettlementVault',tier:2},
+  'BlackRock_x320':   {identity:'BlackRock Inc.',           vault:'BlackRockSettlementVault',tier:3},
+};
+
+// ── LP ROUTING TABLE ─────────────────────────────────────────────
+const LP_ROUTING=[
+  {asset:'ETH', chain:'SOL',    vault:'Wintermute_SOL',    px:0.99981,tier:1},
+  {asset:'ETH', chain:'SOL',    vault:'Galaxy_SOL',        px:0.99989,tier:1},
+  {asset:'ETH', chain:'SOL',    vault:'Cumberland_SOL',    px:0.99995,tier:1},
+  {asset:'ETH', chain:'ETH',    vault:'Wintermute_ETH',    px:0.99975,tier:1},
+  {asset:'ETH', chain:'ARB',    vault:'Wintermute_ARB',    px:0.99988,tier:1},
+  {asset:'USDC',chain:'ARB',    vault:'Galaxy_ARB',        px:1.00000,tier:1},
+  {asset:'USDC',chain:'BASE',   vault:'Galaxy_BASE',       px:1.00000,tier:1},
+  {asset:'USDC',chain:'POLYGON',vault:'Cumberland_POLYGON',px:1.00000,tier:1},
+  {asset:'BTC', chain:'ETH',    vault:'Cumberland_ETH',    px:0.99982,tier:1},
+];
+
+// [INTEGRATION POINT] Replace with CryptoCompare/CoinGecko API
+const SPOT={ETH:3318.50,SOL:141.72,BTC:87432.00,USDC:1.00,WBTC:87180.00};
+const spot=a=>(SPOT[a.toUpperCase()]??1)*(1+(Math.random()*.0018-.0009));
+
+// ═══════════════════════════════════════════════════════════════════
+// CLEARING LEDGER
+// ─────────────────────────────────────────────────────────────────
+// The engine's only interface. Engines write. UI reads. No other coupling.
+// ═══════════════════════════════════════════════════════════════════
+const LEDGER={
+  LIVE:{},DELIVERING:{},AWAITING_SETTLEMENT:{},
+  COMPLETED:{},FAILED:{},RECONCILIATION:{},
+  events:{},
+  totalVol:0,totalFees:0,totalFiReserved:0,
+  _activated:false,
+
+  writeEvent(orderId,src,msg,cls=''){
+    if(!this.events[orderId])this.events[orderId]=[];
+    const e={ts:shrt(),src,msg,cls};
+    this.events[orderId].unshift(e);
+    Bus.emit('ledger:event',{orderId,event:e});
+  },
+
+  transition(order,newState){
+    const cur=order.status;
+    if(this[cur])delete this[cur][order.id];
+    order.status=newState;
+    order.stateAt=shrt();
+    if(!order.transitions)order.transitions=[];
+    order.transitions.push({state:newState,at:shrt()});
+    if(this[newState])this[newState][order.id]=order;
+    if(!this._activated){this._activated=true;UI.activate();}
+    Bus.emit('ledger:transition',{orderId:order.id,from:cur,to:newState});
+    UI.renderAll();
+  },
+
+  count(p){return Object.keys(this[p]||{}).length;},
+  all(p){return Object.values(this[p]||{});},
+};
+
+const ORDER_STORE={};
+
+// ═══════════════════════════════════════════════════════════════════
+// RESERVATION ENGINE  (sub-component of ORCH — never called directly)
+// ─────────────────────────────────────────────────────────────────
+// Owns all reservation logic for both FI and LP vaults.
+// Two responsibilities:
+//   1. reserveFI  — gate 1, must pass before LP routing begins
+//   2. reserveLP  — gate 2, called after Execution Engine confirms fills
+// Both write to the ledger. Both auto-release on failure or completion.
+// Timeout is chain-derived, FI may extend but not shorten.
+// ═══════════════════════════════════════════════════════════════════
+class ReservationEngine {
+  constructor(){this.name='RESV';}
+  _log(id,msg,cls=''){LEDGER.writeEvent(id,this.name,msg,cls);_stripLog(this.name,msg,cls);}
+
+  // ── GATE 1: Reserve FI vault ──────────────────────────────────
+  // Called first. If this fails, nothing else runs.
+  async reserveFI(orderId,tenetAddress,amount,deadline){
+    const fi=FI_REGISTRY[tenetAddress];
+    if(!fi)return{ok:false,reason:'FI_NOT_FOUND'};
+
+    const vaultId=fi.vault;
+    const vault=VAULT_REGISTRY[vaultId];
+
+    if(!vault)return{ok:false,reason:'VAULT_NOT_FOUND'};
+    if(vault.status==='PENDING_CUSTODY')
+      return{ok:false,reason:'VAULT_PENDING_CUSTODY',msg:`${vaultId} not yet connected to custody provider`};
+
+    this._log(orderId,`FI reservation: ${vaultId} · locking ${usd2(amount)} USDC · deadline ${deadline}s`);
+
+    const res=await VaultProvider.reserve(vaultId,amount,orderId);
+    if(!res.ok){
+      this._log(orderId,`FI reservation FAILED · available ${usd2(res.available)} · need ${usd2(amount)}`,'re');
+      return{ok:false,reason:'INSUFFICIENT_FI_FUNDS',
+        msg:`vault has ${usd2(res.available)}, need ${usd2(amount)}`};
+    }
+
+    // Record reservation metadata on order for ledger display
+    ORDER_STORE[orderId].fiReservation={
+      vaultId,amount,deadline,reservedAt:shrt(),
+      expiresAt: new Date(Date.now()+deadline*1000).toISOString().slice(11,19),
+      status:'ACTIVE',
+    };
+
+    LEDGER.totalFiReserved+=amount;
+    this._log(orderId,`FI reservation CONFIRMED · ${usd2(res.available)} USDC remaining in ${vaultId}`,'bb');
+    Bus.emit('reservation:fi',{orderId,vaultId,amount});
+
+    // Timeout watchdog — auto-expire if deadline exceeded
+    const timer=setTimeout(()=>this._expireFI(orderId,vaultId),deadline*1000);
+    ORDER_STORE[orderId]._fiTimer=timer;
+
+    return{ok:true};
+  }
+
+  // ── GATE 2: Reserve LP vaults ─────────────────────────────────
+  // Called after Execution Engine confirms fill plan.
+  async reserveLP(orderId,fills){
+    this._log(orderId,`LP reservations: ${fills.length} vault${fills.length>1?'s':''}`);
+
+    const reserved=[];
+    for(const f of fills){
+      const res=await VaultProvider.reserve(f.vault,f.amount,orderId);
+      if(!res.ok){
+        // Roll back any partial LP reservations already posted
+        for(const r of reserved) await VaultProvider.release(r.vault,orderId);
+        this._log(orderId,`LP reservation FAILED on ${f.vault} · rolling back ${reserved.length} partial reservation${reserved.length!==1?'s':''}`,'re');
+        return{ok:false,reason:'LP_LIQUIDITY_UNAVAILABLE',
+          msg:`reservation failed on ${f.vault} — insufficient available balance`};
+      }
+      reserved.push(f);
+      this._log(orderId,`LP reserved: ${f.vault} · ${num(f.amount,4)} ${ORDER_STORE[orderId]?.asset||''} · avail now ${num(res.available,4)}`);
+    }
+
+    ORDER_STORE[orderId].lpReservations=fills.map(f=>({
+      vaultId:f.vault,amount:f.amount,reservedAt:shrt(),status:'ACTIVE',
+    }));
+
+    this._log(orderId,`LP reservations CONFIRMED · ${fills.length} vault${fills.length>1?'s':''} locked`,'bb');
+    Bus.emit('reservation:lp',{orderId,fills});
+    return{ok:true};
+  }
+
+  // ── RELEASE ───────────────────────────────────────────────────
+  // Called on completion or failure — releases all held reservations.
+  async releaseAll(orderId){
+    const order=ORDER_STORE[orderId];
+    if(!order)return;
+
+    // Cancel FI timeout watchdog
+    if(order._fiTimer){clearTimeout(order._fiTimer);delete order._fiTimer;}
+
+    // Release FI reservation
+    if(order.fiReservation){
+      await VaultProvider.release(order.fiReservation.vaultId,orderId);
+      LEDGER.totalFiReserved=Math.max(0,LEDGER.totalFiReserved-order.fiReservation.amount);
+      if(order.fiReservation.status==='ACTIVE'){
+        order.fiReservation.status='RELEASED';
+        order.fiReservation.releasedAt=shrt();
+      }
+      this._log(orderId,`FI reservation released · ${order.fiReservation.vaultId}`);
+    }
+
+    // Release LP reservations
+    if(order.lpReservations){
+      for(const r of order.lpReservations){
+        await VaultProvider.release(r.vaultId,orderId);
+        r.status='RELEASED';r.releasedAt=shrt();
+      }
+      this._log(orderId,`LP reservations released · ${order.lpReservations.length} vault${order.lpReservations.length!==1?'s':''}`);
+    }
+
+    Bus.emit('reservation:released',{orderId});
+  }
+
+  // ── TIMEOUT EXPIRY ────────────────────────────────────────────
+  _expireFI(orderId,vaultId){
+    const order=ORDER_STORE[orderId];
+    if(!order||order.status==='COMPLETED'||order.status==='FAILED')return;
+    this._log(orderId,`RESERVATION EXPIRED · ${vaultId} · deadline exceeded · CHAIN_TIMEOUT`,'re');
+    if(order.fiReservation)order.fiReservation.status='STALE';
+    // Signal Orchestration to fail the order
+    Bus.emit('reservation:timeout',{orderId});
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXECUTION ENGINE
+// ─────────────────────────────────────────────────────────────────
+// Responsibility: price discovery, LP depth analysis, fill planning,
+//                 delivery coordination.
+// Never touches reservations — that is ReservationEngine's domain.
+// ═══════════════════════════════════════════════════════════════════
+class ExecutionEngine {
+  constructor(){this.name='EXEC';}
+  _log(id,msg,cls=''){LEDGER.writeEvent(id,this.name,msg,cls);_stripLog(this.name,msg,cls);}
+
+  async findFills(orderId,asset,usdcAmount,delivChain,slipBps){
+    this._log(orderId,`price discovery · ${asset} on ${delivChain} · tolerance ${slipBps}bps`);
+    await wait(rnd(50,110));
+    const assetSpot=spot(asset);
+    const assetQty=usdcAmount/assetSpot;
+    const maxSlip=slipBps/10000;
+
+    const candidates=LP_ROUTING.filter(r=>
+      r.asset===asset.toUpperCase()&&
+      r.chain===delivChain.toUpperCase()&&
+      (1-r.px)<=maxSlip&&
+      VAULT_REGISTRY[r.vault]?.status==='ACTIVE'
+    );
+
+    if(!candidates.length){
+      const any=LP_ROUTING.filter(r=>r.asset===asset.toUpperCase()&&r.chain===delivChain.toUpperCase());
+      return{ok:false,
+        reason:any.length?'SLIPPAGE_EXCEEDED':'LP_LIQUIDITY_UNAVAILABLE',
+        msg:any.length?`no LP within ${slipBps}bps on ${delivChain}`:`no LP inventory for ${asset} on ${delivChain}`};
+    }
+
+    const withBal=await Promise.all(candidates.map(async r=>{
+      try{const a=await VaultProvider.checkBalance(r.vault);return{...r,avail:a};}
+      catch{return{...r,avail:0};}
+    }));
+
+    const sorted=withBal.filter(r=>r.avail>0).sort((a,b)=>b.px-a.px);
+    if(!sorted.length)return{ok:false,reason:'LP_LIQUIDITY_UNAVAILABLE',msg:'all LP vaults empty'};
+
+    let rem=assetQty;const fills=[];
+    for(const r of sorted){
+      if(rem<=0.00001)break;
+      const f=Math.min(r.avail,rem);
+      fills.push({vault:r.vault,lp:r.vault.split('_')[0],chain:r.chain,amount:f,px:r.px});
+      rem-=f;
+    }
+    if(rem>0.0001)return{ok:false,reason:'LP_LIQUIDITY_UNAVAILABLE',
+      msg:`insufficient depth · max fillable: ${num(assetQty-rem,4)} ${asset}`};
+
+    const totQty=fills.reduce((s,f)=>s+f.amount,0);
+    const effPrice=usdcAmount/totQty;
+    const effSlip=Math.round(Math.max(0,(assetSpot-effPrice)/assetSpot*10000));
+    this._log(orderId,`fill plan · ${fills.length} LP${fills.length>1?'s — SPLIT':''}  eff slippage ${effSlip}bps`,fills.length>1?'or':'');
+    return{ok:true,fills,assetQty:totQty,effPrice,effSlipBps:effSlip,assetSpot};
+  }
+
+  async beginDelivery(order,orch){
+    const isSplit=order.fills.length>1;
+    this._log(order.id,`delivery initiated · ${isSplit?'SPLIT via aggregation vault':'direct LP → destination'}`,isSplit?'or':'');
+
+    if(isSplit){
+      const aggId=`TenetAggregation_${order.id}`;
+      VAULT_REGISTRY[aggId]={type:'TENET_AGGREGATION',balance:0,reserved:0,reservations:{},status:'ACTIVE',custodian:'Fireblocks',lastUpdated:shrt()};
+      this._log(order.id,`aggregation vault created · ${aggId}`);
+      await Promise.all(order.fills.map(async f=>{
+        const tx=await VaultProvider.cosignTransfer(f.vault,aggId,f.amount);
+        this._log(order.id,`${f.vault} → ${aggId}  ${num(f.amount,4)} ${order.asset}  tx:${tx}`);
+      }));
+      await wait(rnd(80,180));
+      const qty=order.fills.reduce((s,f)=>s+f.amount,0);
+      const delivTx=await VaultProvider.cosignTransfer(aggId,order.destWallet,qty);
+      order.execTx=delivTx;
+      this._log(order.id,`aggregation → ${order.destWallet}  delivery tx: ${delivTx}`,'gr');
+      delete VAULT_REGISTRY[aggId];
+      this._log(order.id,`aggregation vault closed · ${aggId}`);
+    } else {
+      const f=order.fills[0];
+      const tx=await VaultProvider.cosignTransfer(f.vault,order.destWallet,f.amount);
+      order.execTx=tx;
+      this._log(order.id,`${f.vault} → ${order.destWallet}  tx: ${tx}`,'gr');
+    }
+    orch._onDeliveryConfirmed(order.id);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SETTLEMENT ENGINE
+// ─────────────────────────────────────────────────────────────────
+// Receives only: tenetAddress + settlementTotal + tenetFee.
+// Derives vault from FI_REGISTRY internally.
+// ═══════════════════════════════════════════════════════════════════
+class SettlementEngine {
+  constructor(){this.name='SETT';}
+  _log(id,msg,cls=''){LEDGER.writeEvent(id,this.name,msg,cls);_stripLog(this.name,msg,cls);}
+
+  async extractSettlement(orderId,tenetAddress,total,fee,orch){
+    const fi=FI_REGISTRY[tenetAddress];
+    if(!fi){orch._onSettlementFailed(orderId,'FI_NOT_FOUND');return;}
+    const vaultId=fi.vault;
+    this._log(orderId,`extracting ${usd2(total)} USDC from ${vaultId} · fee ${usd2(fee)} USDC`);
+    try{
+      const tx=await VaultProvider.cosignTransfer(vaultId,'TenetSettlementVault',total);
+      VAULT_REGISTRY['TenetSettlementVault'].balance+=total;
+      ORDER_STORE[orderId].settlExtractTx=tx;
+      this._log(orderId,`extraction confirmed → TenetSettlementVault  tx: ${tx}`,'gr');
+      orch._onSettlementExtracted(orderId);
+    }catch(e){
+      orch._onSettlementFailed(orderId,'VAULT_CO-SIGN_FAILURE');
+    }
+  }
+
+  async routeLPPayout(orderId,fills,usdcAmount,fee,orch){
+    const net=usdcAmount-fee;
+    this._log(orderId,`routing LP payout · ${usd2(net)} USDC · Tenet retains ${usd2(fee)}`);
+    VAULT_REGISTRY['TenetSettlementVault'].balance-=fee;
+    const tot=fills.reduce((s,f)=>s+f.amount,0);
+    for(const f of fills){
+      const share=net*(f.amount/tot);
+      const method=this._method(f.chain);
+      this._log(orderId,`LP payout · ${f.vault}  ${usd2(share)}  via ${method}`);
+      await wait(rnd(50,150));
+      const tx=txHash();
+      ORDER_STORE[orderId].settlTx=tx;
+      this._log(orderId,`${method} confirmed  tx: ${tx}`,'gr');
+    }
+    orch._onLPPayoutConfirmed(orderId);
+  }
+
+  _method(chain){
+    // [INTEGRATION POINT] CCTP: Circle cross-chain transfer protocol
+    // Everclear: non-USDC cross-chain clearing layer
+    const cctp=['ETH','SOL','ARB','BASE','POLYGON','OPTIMISM','AVALANCHE'];
+    return cctp.includes(chain.toUpperCase())?'CCTP':'Everclear';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ORCHESTRATION ENGINE
+// ─────────────────────────────────────────────────────────────────
+// The conductor. One public method: submitIntent(intent).
+// Owns ReservationEngine as a private sub-component.
+// Has no UI — the Clearing Ledger is its interface.
+//
+// [WIRING POINT] CLI calls window.TENET_ORCH.submitIntent(intent)
+// ═══════════════════════════════════════════════════════════════════
+class OrchestrationEngine {
+  constructor(){
+    this.name='ORCH';
+    this.resv=new ReservationEngine();  // private — not accessible outside ORCH
+    this.exec=new ExecutionEngine();
+    this.sett=new SettlementEngine();
+
+    // Listen for reservation timeout events
+    Bus.on('reservation:timeout',({orderId})=>{
+      const o=ORDER_STORE[orderId];
+      if(o&&o.status!=='COMPLETED'&&o.status!=='FAILED')
+        this._fail(o,'CHAIN_TIMEOUT','reservation deadline exceeded for chain combination');
+    });
+  }
+
+  _log(id,msg,cls=''){LEDGER.writeEvent(id,this.name,msg,cls);_stripLog(this.name,msg,cls);}
+
+  // ── PUBLIC: submitIntent ──────────────────────────────────────
+  // intent = {
+  //   tenetAddress,     // FI identifier
+  //   asset,            // e.g. 'ETH'
+  //   usdcAmount,       // how much USDC to spend
+  //   delivChain,       // delivery chain
+  //   settlChain,       // settlement chain (where FI vault lives)
+  //   slipBps,          // slippage tolerance (default 50)
+  //   intent,           // 'buy' | 'sell' | 'swap' | 'convert'
+  //   deadline,         // optional FI extension (seconds) — cannot shorten floor
+  // }
+  async submitIntent(intent){
+    const {tenetAddress,asset,usdcAmount,delivChain,settlChain,slipBps=50,intent:iType='buy',deadline:fiDeadline=0}=intent;
+
+    const fi=FI_REGISTRY[tenetAddress];
+    if(!fi){console.warn('[ORCH] Unknown FI:',tenetAddress);return null;}
+
+    const orderId=nextId();
+    const fee=usdcAmount*0.001;
+    const total=usdcAmount+fee;
+    const destWallet=`${tenetAddress.split('_')[0]}Wallet_${delivChain}`;
+
+    // Derive chain-aware deadline — replaces whitepaper's flat 60s
+    const deadline=deriveDeadline(delivChain,settlChain,fiDeadline);
+
+    const order={
+      id:orderId,status:'PENDING',intent:iType,
+      tenetAddress,fi:fi.identity,
+      asset:asset.toUpperCase(),usdcAmount,fee,total,
+      delivChain:delivChain.toUpperCase(),settlChain:settlChain.toUpperCase(),
+      destWallet,slipBps,deadline,
+      fills:[],assetQty:null,effPrice:null,effSlipBps:null,
+      execTx:null,settlExtractTx:null,settlTx:null,
+      fiReservation:null,lpReservations:null,
+      transitions:[],stateAt:shrt(),
+      _fiTimer:null,
+    };
+    ORDER_STORE[orderId]=order;
+
+    this._log(orderId,`intent received · ${iType.toUpperCase()} ${usd2(usdcAmount)} USDC of ${asset} on ${delivChain} · deadline ${deadline}s (${delivChain}/${settlChain})`,'bb');
+
+    // ── STEP 1: Reservation Engine — Gate 1 (FI vault) ───────────
+    // Must pass before anything else runs.
+    const fiResv=await this.resv.reserveFI(orderId,tenetAddress,total,deadline);
+    if(!fiResv.ok){
+      this._fail(order,fiResv.reason,fiResv.msg||'');
+      return null;
+    }
+
+    // ── STEP 2: Execution Engine — price discovery + fill plan ────
+    const plan=await this.exec.findFills(orderId,asset,usdcAmount,delivChain,slipBps);
+    if(!plan.ok){
+      await this.resv.releaseAll(orderId);   // clean release of FI reservation
+      this._fail(order,plan.reason,plan.msg);
+      return null;
+    }
+    order.fills=plan.fills;
+    order.assetQty=plan.assetQty;
+    order.effPrice=plan.effPrice;
+    order.effSlipBps=plan.effSlipBps;
+
+    // ── STEP 3: Reservation Engine — Gate 2 (LP vaults) ──────────
+    const lpResv=await this.resv.reserveLP(orderId,plan.fills);
+    if(!lpResv.ok){
+      await this.resv.releaseAll(orderId);   // clean release of FI + any partial LP
+      this._fail(order,lpResv.reason,lpResv.msg||'');
+      return null;
+    }
+
+    // ── STEP 4: Write LIVE to ledger ──────────────────────────────
+    LEDGER.transition(order,'LIVE');
+    this._log(orderId,`ORDER LIVE · FI + LP reservations confirmed · deadline ${deadline}s`,'bb');
+
+    // ── STEP 5: Deliver + extract simultaneously ──────────────────
+    await wait(rnd(300,700));
+    LEDGER.transition(order,'DELIVERING');
+    this._log(orderId,'DELIVERING · execution + settlement firing simultaneously','or');
+
+    // Orchestrated atomicity — both legs fire concurrently
+    Promise.all([
+      this.exec.beginDelivery(order,this),
+      this.sett.extractSettlement(orderId,tenetAddress,total,fee,this),
+    ]);
+
+    return orderId;
+  }
+
+  // ── ENGINE CALLBACKS ──────────────────────────────────────────
+  _onDeliveryConfirmed(orderId){
+    const o=ORDER_STORE[orderId];
+    if(!o||o.status==='FAILED')return;
+    this._log(orderId,`delivery confirmed  execTx: ${o.execTx}`,'gr');
+    this._checkBothLegs(orderId);
+  }
+
+  _onSettlementExtracted(orderId){
+    const o=ORDER_STORE[orderId];
+    if(!o||o.status==='FAILED')return;
+    this._log(orderId,`extraction confirmed  extractTx: ${o.settlExtractTx}`,'gr');
+    this._checkBothLegs(orderId);
+  }
+
+  _onSettlementFailed(orderId,reason){
+    const o=ORDER_STORE[orderId];
+    if(o)this._fail(o,reason,'settlement engine reported failure');
+  }
+
+  _checkBothLegs(orderId){
+    const o=ORDER_STORE[orderId];
+    if(!o||o.status==='FAILED')return;
+    if(o.execTx&&o.settlExtractTx){
+      LEDGER.transition(o,'AWAITING_SETTLEMENT');
+      this._log(orderId,'AWAITING_SETTLEMENT · FI delivery complete · LP payout queued','bb');
+      setTimeout(()=>this.sett.routeLPPayout(orderId,o.fills,o.usdcAmount,o.fee,this),rnd(200,600));
+    }
+  }
+
+  _onLPPayoutConfirmed(orderId){
+    const o=ORDER_STORE[orderId];
+    if(!o)return;
+    // Release all reservations on completion
+    this.resv.releaseAll(orderId);
+    LEDGER.transition(o,'COMPLETED');
+    this._log(orderId,`COMPLETED · LP settled on native chain  settlTx: ${o.settlTx}`,'gr');
+    LEDGER.totalVol+=o.usdcAmount;
+    LEDGER.totalFees+=o.fee;
+    UI.renderStats();
+  }
+
+  _fail(order,reason,detail=''){
+    order.failReason=reason;
+    order.failDetail=detail;
+    // Release all reservations on failure
+    this.resv.releaseAll(order.id);
+    LEDGER.transition(order,'FAILED');
+    this._log(order.id,`FAILED · ${reason}${detail?' — '+detail:''}`,'re');
+  }
+}
+
+// Singleton — exposed for CLI wiring
+const ORCH=new OrchestrationEngine();
+window.TENET_ORCH=ORCH;
+
+// ═══════════════════════════════════════════════════════════════════
+// ENGINE LOG STRIP
+// ═══════════════════════════════════════════════════════════════════
+let _logEls=[],_logInit=false;
+function _stripLog(src,msg,cls=''){
+  const strip=document.getElementById('eng-log');
+  if(!_logInit){strip.innerHTML='';_logInit=true;}
+  const sc=src==='ORCH'?'eo':src==='EXEC'?'ex':src==='RESV'?'er':'es';
+  const el=document.createElement('div');
+  el.className='loge';
+  el.innerHTML=`<span class="logets">${shrt()}</span><span class="logesrc ${sc}">${src}</span><span class="logemsg ${cls}">${msg.length>60?msg.slice(0,60)+'…':msg}</span>`;
+  strip.insertBefore(el,strip.firstChild);
+  _logEls.push(el);
+  if(_logEls.length>8){_logEls.shift().remove();}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════════════════
+let activeTab='LIVE',selectedId=null;
+const _expanded=new Set(); // vault IDs with expanded order breakdown
+
+const UI={
+
+  activate(){
+    document.getElementById('dormant').classList.add('hidden');
+    const b=document.getElementById('eng-badge');
+    b.className='active';
+    b.innerHTML=`<span class="dot dot-on"></span>ENGINE ACTIVE`;
+    ['s-live','s-del','s-awt','s-cmp','s-fi-rsv','s-vol','s-fee']
+      .forEach(id=>document.getElementById(id)?.classList.remove('off'));
+  },
+
+  renderAll(){
+    this.renderTabCounts();
+    this.renderStats();
+    this.renderSheet(activeTab);
+    if(selectedId)this.renderDetail(selectedId);
+  },
+
+  renderTabCounts(){
+    ['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED','FAILED','RECONCILIATION']
+      .forEach(p=>{const el=document.getElementById('tc-'+p);if(el)el.textContent=LEDGER.count(p);});
+    // FI reservations = orders with active FI reservation
+    const fiCount=Object.values(ORDER_STORE).filter(o=>o.fiReservation&&o.fiReservation.status==='ACTIVE').length;
+    const lpCount=Object.values(ORDER_STORE).filter(o=>o.lpReservations&&o.lpReservations.some(r=>r.status==='ACTIVE')).length;
+    const fiE=document.getElementById('tc-FI_RESERVATIONS');if(fiE)fiE.textContent=fiCount;
+    const lpE=document.getElementById('tc-LP_RESERVATIONS');if(lpE)lpE.textContent=lpCount;
+    const lvE=document.getElementById('tc-LP_VAULTS');
+    if(lvE)lvE.textContent=Object.values(VAULT_REGISTRY).filter(v=>v.type==='LP_LIQUIDITY').length;
+  },
+
+  renderStats(){
+    const set=(id,val)=>{
+      const el=document.getElementById(id);if(!el||el.textContent===val)return;
+      el.textContent=val;el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),400);
+    };
+    set('s-live',LEDGER.count('LIVE'));
+    set('s-del', LEDGER.count('DELIVERING'));
+    set('s-awt', LEDGER.count('AWAITING_SETTLEMENT'));
+    set('s-cmp', LEDGER.count('COMPLETED'));
+    set('s-fi-rsv',usd(LEDGER.totalFiReserved));
+    set('s-vol',usd(LEDGER.totalVol));
+    set('s-fee',usd(LEDGER.totalFees));
+  },
+
+  renderSheet(tab){
+    const sc=document.getElementById('sheet-content');
+    if(tab==='FI_RESERVATIONS'){sc.innerHTML=this._rsvSheet('FI');return;}
+    if(tab==='LP_RESERVATIONS'){sc.innerHTML=this._rsvSheet('LP');return;}
+    if(tab==='LP_VAULTS'){sc.innerHTML=this._lpVaultSheet();return;}
+    sc.innerHTML=this._orderSheet(tab);
+  },
+
+  // ── RESERVATION SHEET ─────────────────────────────────────────
+  _rsvSheet(side){
+    // side: 'FI' or 'LP'
+    // Group active reservations by vault
+    const isFI = side==='FI';
+    const barCls = isFI?'vsbar-rsv-fi':'vsbar-rsv-lp';
+
+    // Collect all orders with active reservations on this side
+    const orders=Object.values(ORDER_STORE).filter(o=>
+      isFI ? (o.fiReservation&&o.fiReservation.status==='ACTIVE')
+           : (o.lpReservations&&o.lpReservations.some(r=>r.status==='ACTIVE'))
+    );
+
+    // Group by vault
+    const byVault={};
+    if(isFI){
+      orders.forEach(o=>{
+        const vid=o.fiReservation.vaultId;
+        if(!byVault[vid])byVault[vid]={vaultId:vid,orders:[]};
+        byVault[vid].orders.push(o);
+      });
+    } else {
+      orders.forEach(o=>{
+        o.lpReservations.filter(r=>r.status==='ACTIVE').forEach(r=>{
+          if(!byVault[r.vaultId])byVault[r.vaultId]={vaultId:r.vaultId,orders:[]};
+          byVault[r.vaultId].orders.push({order:o,rsv:r});
+        });
+      });
+    }
+
+    if(!Object.keys(byVault).length)
+      return `<div style="padding:40px;text-align:center;color:var(--bk);font-size:10px;letter-spacing:.05em">no active ${side} reservations</div>`;
+
+    let h='';
+    Object.entries(byVault).forEach(([vid,vd])=>{
+      const vault=VAULT_REGISTRY[vid];
+      if(!vault)return;
+      const totalRsv=isFI
+        ? vd.orders.reduce((s,o)=>s+(o.fiReservation?.amount||0),0)
+        : vd.orders.reduce((s,e)=>s+(e.rsv?.amount||0),0);
+      const pct=vault.balance>0?(totalRsv/vault.balance*100).toFixed(0):0;
+      const avail=vault.balance-vault.reserved;
+      const isExp=_expanded.has(vid);
+
+      h+=`<div class="vault-block">
+        <div class="vault-summary" style="grid-template-columns:200px 1fr 160px 70px" onclick="UI.toggleVault('${vid}')">
+          <span class="vsname"><span class="expand-arrow${isExp?' open':''}" id="arr-${vid}">▶</span>  ${vid}</span>
+          <span>
+            <div style="font-size:9px;color:var(--bd);margin-bottom:3px">${num(vault.balance,2)} total · <span style="color:${isFI?'var(--or)':'var(--bm)'}">${num(totalRsv,2)}</span> reserved · <span style="color:var(--bb)">${num(avail,2)}</span> available</div>
+            <div class="vsbar-wrap"><div class="vsbar-tot" style="width:100%"></div><div class="vsbar-rsv ${barCls}" style="width:${pct}%"></div></div>
+          </span>
+          <span class="vsnums" style="font-size:9px"><span style="color:${isFI?'var(--or)':'var(--bm)'}">${vd.orders.length}</span> active reservation${vd.orders.length!==1?'s':''}</span>
+          <span class="vstatus ${vault.status==='ACTIVE'?'vs-active':'vs-pending'}">${vault.status}</span>
+        </div>
+        <div class="rsv-orders${isExp?' open':''}" id="rsv-${vid}">`;
+
+      if(isFI){
+        vd.orders.forEach(o=>{
+          const r=o.fiReservation;
+          const age=r?Math.round((Date.now()-new Date('1970-01-01T'+r.reservedAt+'Z').getTime())/1000)+'s ago':'—';
+          const remaining=r?this._remaining(r.reservedAt,o.deadline):'—';
+          const deadCls=remaining==='expired'?'stale':parseInt(remaining)<10?'warn':'ok';
+          h+=`<div class="rsv-order-row" style="grid-template-columns:130px 120px 100px 1fr 80px" onclick="UI.selectOrder('${o.id}')">
+            <span class="rso-id">${o.id}</span>
+            <span class="rso-amt">${usd2(r?.amount||0)} USDC</span>
+            <span class="rso-age">${age}</span>
+            <span class="rso-dead ${deadCls}">⏱ ${remaining==='expired'?'EXPIRED':remaining+'s left'} · deadline ${o.deadline}s</span>
+            <span><span class="chip chip-live" style="font-size:8px">${o.status}</span></span>
+          </div>`;
+        });
+      } else {
+        vd.orders.forEach(({order:o,rsv:r})=>{
+          const age=Math.round((Date.now()-new Date('1970-01-01T'+r.reservedAt+'Z').getTime())/1000)+'s ago';
+          h+=`<div class="rsv-order-row" style="grid-template-columns:130px 120px 100px 1fr 80px" onclick="UI.selectOrder('${o.id}')">
+            <span class="rso-id">${o.id}</span>
+            <span class="rso-amt">${num(r.amount,4)} ${o.asset||''}</span>
+            <span class="rso-age">${age}</span>
+            <span style="font-size:9px;color:var(--bd)">${r.vaultId} · ${o.delivChain}</span>
+            <span><span class="chip chip-live" style="font-size:8px">${o.status}</span></span>
+          </div>`;
+        });
+      }
+
+      h+=`</div></div>`;
+    });
+    return h;
+  },
+
+  _remaining(reservedAt,deadline){
+    try{
+      const start=new Date('1970-01-01T'+reservedAt+'Z').getTime();
+      const elapsed=(Date.now()-start)/1000;
+      const left=Math.round(deadline-elapsed);
+      return left<=0?'expired':String(left);
+    }catch{return '—';}
+  },
+
+  toggleVault(vid){
+    if(_expanded.has(vid))_expanded.delete(vid);else _expanded.add(vid);
+    this.renderSheet(activeTab);
+  },
+
+  // ── LP VAULT SHEET ────────────────────────────────────────────
+  _lpVaultSheet(){
+    const vaults=Object.entries(VAULT_REGISTRY).filter(([,v])=>v.type==='LP_LIQUIDITY');
+    const cols='190px 70px 70px 1fr 150px 80px 70px';
+    let h=`<div class="hdr-row" style="grid-template-columns:${cols}">
+      <span class="hc">VAULT</span><span class="hc">CHAIN</span><span class="hc">ASSET</span>
+      <span class="hc">BALANCE</span><span class="hc">AVAILABLE · RESERVED</span>
+      <span class="hc">STATUS</span><span class="hc">UPDATED</span>
+    </div>`;
+    if(!vaults.length)return h+'<div style="padding:30px;text-align:center;color:var(--bk);font-size:10px">no LP vaults registered</div>';
+    vaults.forEach(([id,v])=>{
+      const avail=v.balance-v.reserved;
+      const pct=v.balance>0?(v.reserved/v.balance*100).toFixed(0):0;
+      h+=`<div class="lv-row" style="grid-template-columns:${cols}">
+        <span style="font-size:10px;font-weight:700;color:var(--wh)">${id}</span>
+        <span style="font-size:9px;color:var(--bd)">${v.chain}</span>
+        <span style="font-size:9px;color:var(--bm)">${v.asset||'—'}</span>
+        <span>
+          <div style="font-size:9px;color:var(--bd);margin-bottom:3px">${num(v.balance,2)} total</div>
+          <div class="vsbar-wrap"><div class="vsbar-tot" style="width:100%"></div><div class="vsbar-rsv vsbar-rsv-lp" style="width:${pct}%"></div></div>
+        </span>
+        <span style="font-size:9px"><span style="color:var(--bb)">${num(avail,2)}</span><span style="color:var(--bd)"> avail</span>${v.reserved>0?`<span style="color:var(--bm)"> · ${num(v.reserved,2)} rsv</span>`:''}</span>
+        <span class="vstatus ${v.status==='ACTIVE'?'vs-active':'vs-pending'}">${v.status}</span>
+        <span style="font-size:9px;color:var(--bk)">${v.lastUpdated}</span>
+      </div>`;
+    });
+    return h;
+  },
+
+  // ── ORDER SHEET ───────────────────────────────────────────────
+  _orderSheet(tab){
+    const orders=LEDGER.all(tab);
+    const cols='140px 55px 65px 120px 1fr 75px 90px';
+    let h=`<div class="hdr-row" style="grid-template-columns:${cols}">
+      <span class="hc">ORDER ID</span><span class="hc">INTENT</span><span class="hc">ASSET</span>
+      <span class="hc">USDC AMOUNT</span><span class="hc">LP · VAULT</span>
+      <span class="hc">IN STATE</span><span class="hc">STATUS</span>
+    </div>`;
+    if(!orders.length)
+      return h+`<div style="padding:40px;text-align:center;color:var(--bk);font-size:10px;letter-spacing:.05em">no orders in ${tab.replace(/_/g,' ')}</div>`;
+    orders.slice().reverse().forEach(o=>{
+      const sel=o.id===selectedId;
+      const cc={LIVE:'chip chip-live',DELIVERING:'chip chip-del',AWAITING_SETTLEMENT:'chip chip-awt',COMPLETED:'chip chip-cmp',FAILED:'chip chip-fail',RECONCILIATION:'chip chip-rec'}[o.status]||'chip chip-live';
+      const lpLabel=o.fills&&o.fills.length>1
+        ?`<span style="color:var(--or)">SPLIT</span> ${o.fills.length}×`
+        :o.fills&&o.fills[0]?o.fills[0].vault:'<span style="color:var(--bk)">routing…</span>';
+      h+=`<div class="orow${sel?' sel':''}" style="grid-template-columns:${cols}" onclick="UI.selectOrder('${o.id}')">
+        <span class="oid">${o.id}</span>
+        <span class="oint">${(o.intent||'buy').toUpperCase()}</span>
+        <span class="oasset">${o.asset||'—'}</span>
+        <span class="oamt">${usd2(o.usdcAmount||0)}</span>
+        <span class="olp">${lpLabel}</span>
+        <span class="otime">${o.stateAt||'—'}</span>
+        <span><span class="${cc}">${o.status}</span></span>
+      </div>`;
+    });
+    return h;
+  },
+
+  selectOrder(id){
+    selectedId=id;
+    this.renderSheet(activeTab);
+    this.renderDetail(id);
+  },
+
+  // ── DETAIL PANEL ──────────────────────────────────────────────
+  renderDetail(id){
+    const o=ORDER_STORE[id];
+    const db=document.getElementById('dbody');
+    const de=document.getElementById('dempty');
+    if(!o){de.style.display='flex';db.style.cssText='';return;}
+    de.style.display='none';db.style.display='block';
+
+    const sc2={COMPLETED:'gr',FAILED:'re',DELIVERING:'or',AWAITING_SETTLEMENT:'gr',LIVE:'bb',RECONCILIATION:'or'}[o.status]||'bb';
+
+    let h='';
+
+    // Identity
+    h+=`<div class="ds"><div class="dst">Order identity</div>`;
+    [
+      ['Order ID',      o.id],
+      ['FI',            o.tenetAddress+'  ·  '+(o.fi||'')],
+      ['Intent',        (o.intent||'buy').toUpperCase()],
+      ['Asset',         (o.asset||'')+'  on  '+(o.delivChain||'')],
+      ['USDC spend',    usd2(o.usdcAmount||0)],
+      ['Asset qty',     o.assetQty?num(o.assetQty,6)+' '+(o.asset||''):'routing…'],
+      ['Eff. price',    o.effPrice?usd2(o.effPrice)+' / '+(o.asset||''):'—'],
+      ['Eff. slippage', o.effSlipBps!=null?o.effSlipBps+'bps':'—'],
+      ['Tenet fee',     usd2(o.fee||0)],
+      ['Vault extract', usd2(o.total||0)],
+      ['Slip tolerance',(o.slipBps||50)+'bps'],
+      ['Deadline',      (o.deadline||'—')+'s  (chain-derived)'],
+      ['Status',        `<span class="${sc2}">${o.status}</span>`],
+      ['Exec tx',       o.execTx||'—'],
+      ['Extract tx',    o.settlExtractTx||'—'],
+      ['Settlement tx', o.settlTx||'—'],
+    ].forEach(([k,v])=>h+=`<div class="dr"><div class="dk">${k}</div><div class="dv">${v}</div></div>`);
+    if(o.failReason)h+=`<div class="dr"><div class="dk">Fail reason</div><div class="dv re">${o.failReason}</div></div>`;
+    if(o.failDetail)h+=`<div class="dr"><div class="dk">Detail</div><div class="dv re" style="font-size:9px">${o.failDetail}</div></div>`;
+    h+='</div>';
+
+    // Reservations block
+    if(o.fiReservation||o.lpReservations){
+      h+=`<div class="ds"><div class="dst">Reservation status</div>`;
+      if(o.fiReservation){
+        const r=o.fiReservation;
+        const stCls=r.status==='ACTIVE'?'or':r.status==='STALE'?'re':'gr';
+        h+=`<div class="dr"><div class="dk">FI vault</div><div class="dv or">${r.vaultId}</div></div>`;
+        h+=`<div class="dr"><div class="dk">FI locked</div><div class="dv or">${usd2(r.amount)} USDC</div></div>`;
+        h+=`<div class="dr"><div class="dk">Reserved at</div><div class="dv">${r.reservedAt}</div></div>`;
+        h+=`<div class="dr"><div class="dk">Deadline</div><div class="dv">${o.deadline}s  (${o.delivChain}/${o.settlChain})</div></div>`;
+        h+=`<div class="dr"><div class="dk">FI rsv status</div><div class="dv ${stCls}">${r.status}</div></div>`;
+        if(r.releasedAt)h+=`<div class="dr"><div class="dk">Released at</div><div class="dv gr">${r.releasedAt}</div></div>`;
+      }
+      if(o.lpReservations&&o.lpReservations.length){
+        h+=`<div class="dr" style="margin-top:4px"><div class="dk">LP vaults</div><div class="dv">${o.lpReservations.length} reserved</div></div>`;
+        o.lpReservations.forEach(r=>{
+          const stCls2=r.status==='ACTIVE'?'bb':'gr';
+          h+=`<div class="dr"><div class="dk" style="font-size:9px;padding-left:8px">${r.vaultId}</div><div class="dv ${stCls2}" style="font-size:9px">${num(r.amount,4)}  ·  ${r.status}</div></div>`;
+        });
+      }
+      h+='</div>';
+    }
+
+    // LP assignment
+    if(o.fills&&o.fills.length){
+      h+=`<div class="ds"><div class="dst">LP assignment</div>`;
+      if(o.fills.length===1){
+        const f=o.fills[0];
+        h+=`<div class="dr"><div class="dk">LP_assigned</div><div class="dv bb">${f.vault}</div></div>`;
+        h+=`<div class="dr"><div class="dk">→ LP identity</div><div class="dv">${f.vault.split('_')[0]}</div></div>`;
+        h+=`<div class="dr"><div class="dk">→ Exec chain</div><div class="dv">${f.chain}</div></div>`;
+        h+=`<div class="dr"><div class="dk">Slippage</div><div class="dv">${((1-f.px)*10000).toFixed(1)}bps</div></div>`;
+      } else {
+        h+=`<div class="dr"><div class="dk">Split type</div><div class="dv or">MULTI-LP (${o.fills.length})</div></div>`;
+        h+=`<div class="dr"><div class="dk">FIFO isolation</div><div class="dv">active</div></div>`;
+        h+='</div><div class="ds"><div class="dst">LP split</div>';
+        const tot=o.fills.reduce((s,f)=>s+f.amount,0);
+        o.fills.forEach(f=>{const pct=((f.amount/tot)*100).toFixed(1);h+=`<div class="spr"><span class="splp">${f.vault}</span><div class="spbg"><div class="spfill" style="width:${pct}%"></div></div><span class="sppct">${pct}%</span></div>`;});
+      }
+      h+='</div>';
+    }
+
+    // Lifecycle
+    const ALL=['LIVE','DELIVERING','AWAITING_SETTLEMENT','COMPLETED'];
+    const tmap={};(o.transitions||[]).forEach(t=>tmap[t.state]=t);
+    const display=['FAILED','RECONCILIATION'].includes(o.status)
+      ?[...ALL.slice(0,Math.max(1,(o.transitions||[]).filter(t=>!['FAILED','RECONCILIATION'].includes(t.state)).length)),o.status]
+      :ALL;
+    h+=`<div class="ds"><div class="dst">Lifecycle</div><div class="tl">`;
+    display.forEach(s=>{
+      const t=tmap[s],past=t&&s!==o.status,cur=s===o.status;
+      const dot=past?'done':cur?'cur':'pend';
+      h+=`<div class="tli"><div class="tld ${dot}"></div><div class="tll${!past&&!cur?' dim':''}">${s}</div><div class="tlt">${t?t.at:''}</div></div>`;
+    });
+    h+='</div></div>';
+
+    // Engine events
+    const evts=LEDGER.events[id]||[];
+    h+=`<div class="ds"><div class="dst">Engine events  (${evts.length})</div>`;
+    if(!evts.length)h+='<div style="color:var(--bk);font-size:10px;padding:3px 0">no events</div>';
+    else evts.forEach(e=>{
+      const src2=e.src==='ORCH'?'eo':e.src==='EXEC'?'ex':e.src==='RESV'?'er':'es';
+      h+=`<div class="ee"><span class="eets">${e.ts}</span><span class="eesrc ${src2}">${e.src}</span><span class="eemsg ${e.cls||''}">${e.msg}</span></div>`;
+    });
+    h+='</div>';
+
+    db.innerHTML=h;
+    document.getElementById('dtitle').textContent=id+' · '+o.status;
+  },
+};
+
+// ── TAB SWITCH ────────────────────────────────────────────────────
+function switchTab(tab){
+  activeTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.sheet===tab));
+  UI.renderSheet(tab);
+}
+
+// ── BUS ───────────────────────────────────────────────────────────
+Bus.on('ledger:transition',()=>{UI.renderTabCounts();UI.renderStats();});
+Bus.on('ledger:event',({orderId})=>{if(selectedId===orderId)UI.renderDetail(orderId);});
+Bus.on('vault:update',()=>{
+  UI.renderTabCounts();
+  if(['LP_VAULTS','FI_RESERVATIONS','LP_RESERVATIONS'].includes(activeTab))UI.renderSheet(activeTab);
+});
+Bus.on('reservation:fi',   ()=>{UI.renderTabCounts();UI.renderStats();if(activeTab==='FI_RESERVATIONS')UI.renderSheet('FI_RESERVATIONS');});
+Bus.on('reservation:lp',   ()=>{UI.renderTabCounts();if(activeTab==='LP_RESERVATIONS')UI.renderSheet('LP_RESERVATIONS');});
+Bus.on('reservation:released',()=>{UI.renderTabCounts();UI.renderStats();UI.renderSheet(activeTab);});
+
+// Periodic vault drift correction
+setInterval(()=>{
+  if(['LP_VAULTS','FI_RESERVATIONS','LP_RESERVATIONS'].includes(activeTab))UI.renderSheet(activeTab);
+},4000);
+
+// ── CLOCK ─────────────────────────────────────────────────────────
+setInterval(()=>{document.getElementById('clk').textContent=new Date().toUTCString().slice(17,25)+' UTC';},1000);
+
+// ── INITIAL RENDER ────────────────────────────────────────────────
+UI.renderTabCounts();
+UI.renderSheet('LIVE');
+</script>
+</body>
+</html>

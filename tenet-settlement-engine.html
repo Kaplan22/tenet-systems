@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TENET SYSTEMS — Settlement Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#000;--bg1:#040D18;--bg2:#060F1E;
+  --bb:#6CBFEF;--bm:#2E7BB5;--bd:#153E60;--bk:#0A2438;
+  --gr:#2EBD7A;--gd:#1A6B46;--re:#D95050;--or:#C98A1A;--wh:#C2DFF2;
+  --glow:0 0 8px rgba(108,191,239,0.4);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--bm);
+  font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.65;
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 50%,rgba(0,0,0,0.5) 100%)}
+
+#shell{display:flex;flex-direction:column;height:100vh}
+
+/* topbar */
+#topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:7px 20px;border-bottom:1px solid var(--bk);background:rgba(0,8,18,.9)}
+#brand{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--bb);text-shadow:var(--glow)}
+#sub{font-size:9px;color:var(--bk);letter-spacing:.05em;margin-left:14px}
+#topbar-right{display:flex;align-items:center;gap:20px;font-size:10px;color:var(--bd)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
+.dot-on{background:var(--gr);box-shadow:0 0 5px var(--gr);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* body — two columns */
+#body{flex:1;display:flex;min-height:0}
+
+/* left — test harness */
+#harness{width:340px;flex-shrink:0;display:flex;flex-direction:column;
+  border-right:1px solid var(--bk)}
+#harness-hdr{flex-shrink:0;padding:6px 14px;border-bottom:1px solid var(--bk);
+  background:var(--bg1);font-size:9px;letter-spacing:.1em;color:var(--bd);text-transform:uppercase}
+#harness-body{flex:1;overflow-y:auto;padding:10px 14px}
+#harness-body::-webkit-scrollbar{width:2px}
+#harness-body::-webkit-scrollbar-thumb{background:var(--bk)}
+
+.test-group{margin-bottom:16px}
+.tg-label{font-size:9px;color:var(--bd);letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:6px;border-bottom:1px solid var(--bk);padding-bottom:3px}
+.test-btn{display:block;width:100%;text-align:left;background:var(--bg2);
+  border:1px solid var(--bk);color:var(--bm);font-family:inherit;font-size:10px;
+  padding:5px 10px;margin-bottom:4px;cursor:pointer;transition:all .15s;border-radius:2px}
+.test-btn:hover{background:var(--bg1);color:var(--bb);border-color:var(--bd)}
+.test-btn.running{color:var(--or);border-color:var(--or)}
+.test-btn.pass{color:var(--gr);border-color:var(--gd)}
+.test-btn.fail{color:var(--re);border-color:var(--re)}
+
+.param-row{display:flex;gap:6px;margin-bottom:4px;align-items:center}
+.param-label{font-size:9px;color:var(--bd);flex:0 0 90px}
+.param-input{flex:1;background:var(--bg2);border:1px solid var(--bk);color:#A8D8F5;
+  font-family:inherit;font-size:10px;padding:3px 7px;outline:none;border-radius:2px}
+.param-input:focus{border-color:var(--bd)}
+select.param-input option{background:var(--bg1)}
+
+.run-btn{width:100%;background:rgba(44,123,181,.15);border:1px solid var(--bd);
+  color:var(--bb);font-family:inherit;font-size:10px;padding:6px;cursor:pointer;
+  transition:all .15s;margin-top:6px;border-radius:2px;letter-spacing:.04em}
+.run-btn:hover{background:rgba(44,123,181,.25);text-shadow:var(--glow)}
+
+/* right — engine output */
+#output-area{flex:1;display:flex;flex-direction:column;min-width:0}
+#output-hdr{flex-shrink:0;padding:6px 16px;border-bottom:1px solid var(--bk);
+  background:var(--bg1);display:flex;justify-content:space-between;align-items:center}
+#output-title{font-size:9px;letter-spacing:.1em;color:var(--bd);text-transform:uppercase}
+#output-status{font-size:9px;color:var(--bd)}
+#output{flex:1;overflow-y:auto;padding:10px 16px}
+#output::-webkit-scrollbar{width:2px}
+#output::-webkit-scrollbar-thumb{background:var(--bk)}
+
+/* output line types */
+.ln{display:block;white-space:pre-wrap;word-break:break-all;
+  animation:linein .08s ease-out both}
+@keyframes linein{from{opacity:0;transform:translateX(3px)}to{opacity:1;transform:none}}
+.ln.blank{height:6px}
+.ln.sep{color:var(--bk)}
+.ln.head{color:var(--bb);font-weight:700;text-shadow:var(--glow)}
+.ln.info{color:var(--bm)}
+.ln.dim{color:var(--bd)}
+.ln.bright{color:var(--bb)}
+.ln.success{color:var(--gr)}
+.ln.warn{color:var(--or)}
+.ln.error{color:var(--re)}
+.ln.result{color:var(--wh)}
+
+/* engine log strip */
+#eng-log{flex-shrink:0;height:28px;border-top:1px solid var(--bk);background:var(--bg1);
+  display:flex;align-items:center;overflow:hidden}
+.loge{display:flex;align-items:center;gap:6px;padding:0 12px;height:100%;
+  border-right:1px solid var(--bk);flex-shrink:0;animation:logslide .18s ease-out}
+@keyframes logslide{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+.logets{font-size:9px;color:var(--bk);white-space:nowrap}
+.logesrc{font-size:9px;padding:1px 4px;border-radius:2px}
+.es{background:rgba(201,138,26,.08);color:var(--or)}
+.logemsg{font-size:10px;color:var(--bd);white-space:nowrap;max-width:200px;
+  overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <div id="topbar">
+    <div style="display:flex;align-items:baseline">
+      <span id="brand">TENET SYSTEMS</span>
+      <span id="sub">Settlement Engine  ·  v1.0  ·  Standalone Module  ·  Spec-Compliant</span>
+    </div>
+    <div id="topbar-right">
+      <span><span class="dot dot-on"></span>ENGINE LOADED</span>
+      <span id="clk"></span>
+    </div>
+  </div>
+
+  <div id="body">
+
+    <!-- LEFT: test harness -->
+    <div id="harness">
+      <div id="harness-hdr">Test Harness  ·  Submit settlement scenarios</div>
+      <div id="harness-body">
+
+        <!-- Custom scenario -->
+        <div class="test-group">
+          <div class="tg-label">Custom Scenario</div>
+
+          <div class="param-row">
+            <span class="param-label">FI Address</span>
+            <select class="param-input" id="p-fi">
+              <option>GoldmanSachs_x800</option>
+              <option>JPMorgan_x240</option>
+              <option>BlackRock_x320</option>
+              <option>Fidelity_x510</option>
+            </select>
+          </div>
+          <div class="param-row">
+            <span class="param-label">USDC Amount</span>
+            <input class="param-input" id="p-amount" type="number" value="500000">
+          </div>
+          <div class="param-row">
+            <span class="param-label">LP 1 Vault</span>
+            <select class="param-input" id="p-lp1">
+              <option>Cumberland_SOL</option>
+              <option>Wintermute_SOL</option>
+              <option>Galaxy_SOL</option>
+              <option>Wintermute_ETH</option>
+              <option>Wintermute_ARB</option>
+            </select>
+          </div>
+          <div class="param-row">
+            <span class="param-label">LP 1 Qty</span>
+            <input class="param-input" id="p-qty1" type="number" value="150" step="0.01">
+          </div>
+          <div class="param-row">
+            <span class="param-label">LP 2 Vault</span>
+            <select class="param-input" id="p-lp2">
+              <option value="">(none — single LP)</option>
+              <option>Wintermute_SOL</option>
+              <option>Galaxy_SOL</option>
+              <option>Wintermute_ETH</option>
+              <option>Wintermute_ARB</option>
+            </select>
+          </div>
+          <div class="param-row">
+            <span class="param-label">LP 2 Qty</span>
+            <input class="param-input" id="p-qty2" type="number" value="0" step="0.01">
+          </div>
+
+          <button class="run-btn" onclick="runCustom()">▶  RUN CUSTOM SCENARIO</button>
+        </div>
+
+        <!-- Spec test cases -->
+        <div class="test-group">
+          <div class="tg-label">Spec Test Cases</div>
+
+          <button class="test-btn" id="t1" onclick="runTest('t1')">
+            §11 Worked example — $50M 4-LP split on SOL</button>
+          <button class="test-btn" id="t2" onclick="runTest('t2')">
+            Single LP — small order, CCTP routing</button>
+          <button class="test-btn" id="t3" onclick="runTest('t3')">
+            Multi-LP — netting on same chain</button>
+          <button class="test-btn" id="t4" onclick="runTest('t4')">
+            Cross-chain — SOL → ETH, CCTP + netting mix</button>
+          <button class="test-btn" id="t5" onclick="runTest('t5')">
+            FI not found — FI_NOT_FOUND failure path</button>
+          <button class="test-btn" id="t6" onclick="runTest('t6')">
+            FI vault pending — VAULT_PENDING_CUSTODY</button>
+          <button class="test-btn" id="t7" onclick="runTest('t7')">
+            Tiered fee — $150M order at 7bps</button>
+          <button class="test-btn" id="t8" onclick="runTest('t8')">
+            Everclear routing — non-CCTP chain LP</button>
+        </div>
+
+        <div class="test-group">
+          <div class="tg-label">Run All</div>
+          <button class="run-btn" onclick="runAll()">▶  RUN ALL SPEC TESTS</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: engine output -->
+    <div id="output-area">
+      <div id="output-hdr">
+        <span id="output-title">Engine Output  ·  Awaiting scenario</span>
+        <span id="output-status"></span>
+      </div>
+      <div id="output"></div>
+    </div>
+
+  </div>
+
+  <div id="eng-log">
+    <div class="loge" style="color:var(--bk);font-size:10px;border:none">
+      settlement engine · ready
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════
+const usd2  = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num   = (n, dp=4) => n.toLocaleString('en-US', {minimumFractionDigits:dp, maximumFractionDigits:dp});
+const shrt  = () => new Date().toISOString().slice(11,19);
+const wait  = ms => new Promise(r => setTimeout(r, ms));
+const rnd   = (a, b) => a + Math.random() * (b - a);
+
+// ═══════════════════════════════════════════════════════════════════
+// TX HASH GENERATOR
+// ═══════════════════════════════════════════════════════════════════
+function txHash() {
+  const h = '0123456789abcdef';
+  let s = '0x';
+  for (let i = 0; i < 8; i++) s += h[Math.floor(Math.random() * 16)];
+  return s + '…' + h[Math.floor(Math.random()*16)] + h[Math.floor(Math.random()*16)] +
+         h[Math.floor(Math.random()*16)] + h[Math.floor(Math.random()*16)];
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT PROVIDER INTERFACE
+// ─────────────────────────────────────────────────────────────────
+// [FIREBLOCKS INTEGRATION POINT]
+// cosignTransfer → POST /v1/transactions (TAP co-sign policy)
+// checkBalance   → GET /v1/vault/accounts/{id}/asset/{assetId}
+// ═══════════════════════════════════════════════════════════════════
+class MockVaultProvider {
+  async checkBalance(vaultId) {
+    const v = VAULT_REGISTRY[vaultId];
+    if (!v) throw new Error('VAULT_NOT_FOUND: ' + vaultId);
+    await wait(rnd(20, 50));
+    return v.balance - v.reserved;
+  }
+
+  async cosignTransfer(fromVaultId, toVaultId, amount) {
+    const from = VAULT_REGISTRY[fromVaultId];
+    if (!from) throw new Error('VAULT_NOT_FOUND: ' + fromVaultId);
+    if (from.status === 'PENDING_CUSTODY') throw new Error('VAULT_PENDING_CUSTODY: ' + fromVaultId);
+    await wait(rnd(80, 200));    // simulate co-sign API latency
+    from.balance -= amount;
+    if (VAULT_REGISTRY[toVaultId]) VAULT_REGISTRY[toVaultId].balance += amount;
+    return txHash();
+  }
+}
+const VaultProvider = new MockVaultProvider();
+
+// ═══════════════════════════════════════════════════════════════════
+// VAULT REGISTRY
+// ═══════════════════════════════════════════════════════════════════
+const VAULT_REGISTRY = {
+  // FI Settlement Vaults
+  'GoldmanSettlementVault':  { type:'FI_SETTLEMENT',  fi:'GoldmanSachs_x800', balance:10_000_000, reserved:0, status:'ACTIVE' },
+  'JPMorganSettlementVault': { type:'FI_SETTLEMENT',  fi:'JPMorgan_x240',     balance:25_000_000, reserved:0, status:'ACTIVE' },
+  'BlackRockSettlementVault':{ type:'FI_SETTLEMENT',  fi:'BlackRock_x320',    balance:50_000_000, reserved:0, status:'ACTIVE' },
+  'FidelitySettlementVault': { type:'FI_SETTLEMENT',  fi:'Fidelity_x510',     balance:5_000_000,  reserved:0, status:'PENDING_CUSTODY' },
+  // LP Liquidity Vaults
+  'Wintermute_SOL':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'SOL',     balance:5776,      reserved:0, status:'ACTIVE' },
+  'Wintermute_ETH':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'ETH',     balance:8200,      reserved:0, status:'ACTIVE' },
+  'Wintermute_ARB':    { type:'LP_LIQUIDITY', lp:'Wintermute', chain:'ARB',     balance:4100,      reserved:0, status:'ACTIVE' },
+  'Galaxy_SOL':        { type:'LP_LIQUIDITY', lp:'Galaxy',     chain:'SOL',     balance:5130,      reserved:0, status:'ACTIVE' },
+  'Galaxy_ARB':        { type:'LP_LIQUIDITY', lp:'Galaxy',     chain:'ARB',     balance:3_500_000, reserved:0, status:'ACTIVE' },
+  'Cumberland_SOL':    { type:'LP_LIQUIDITY', lp:'Cumberland', chain:'SOL',     balance:4094,      reserved:0, status:'ACTIVE' },
+  'Cumberland_ETH':    { type:'LP_LIQUIDITY', lp:'Cumberland', chain:'ETH',     balance:320,       reserved:0, status:'ACTIVE' },
+  'Cumberland_POLYGON':{ type:'LP_LIQUIDITY', lp:'Cumberland', chain:'POLYGON', balance:1_200_000, reserved:0, status:'ACTIVE' },
+  'Amber_SOL':         { type:'LP_LIQUIDITY', lp:'Amber',      chain:'SOL',     balance:2100,      reserved:0, status:'ACTIVE' },
+  // Tenet System Vaults
+  'TenetSettlementVault': { type:'TENET_SETTLEMENT', balance:0, reserved:0, status:'ACTIVE' },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// FI REGISTRY
+// Tenet address → vault, identity, tier
+// ═══════════════════════════════════════════════════════════════════
+const FI_REGISTRY = {
+  'GoldmanSachs_x800': { identity:'Goldman Sachs Asset Mgmt',  vault:'GoldmanSettlementVault',   tier:3 },
+  'JPMorgan_x240':     { identity:'JPMorgan Asset Management', vault:'JPMorganSettlementVault',   tier:3 },
+  'BlackRock_x320':    { identity:'BlackRock Inc.',            vault:'BlackRockSettlementVault',  tier:3 },
+  'Fidelity_x510':     { identity:'Fidelity Investments',      vault:'FidelitySettlementVault',   tier:2 },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// LP REGISTRY
+// Vault name → native chain, wallet address (for payout routing)
+// ═══════════════════════════════════════════════════════════════════
+const LP_REGISTRY = {
+  'Wintermute_SOL': { lp:'Wintermute', chain:'SOL', wallet:'WintermutePayout_SOL' },
+  'Wintermute_ETH': { lp:'Wintermute', chain:'ETH', wallet:'WintermutePayout_ETH' },
+  'Wintermute_ARB': { lp:'Wintermute', chain:'ARB', wallet:'WintermutePayout_ARB' },
+  'Galaxy_SOL':     { lp:'Galaxy',     chain:'SOL', wallet:'GalaxyPayout_SOL'     },
+  'Galaxy_ARB':     { lp:'Galaxy',     chain:'ARB', wallet:'GalaxyPayout_ARB'     },
+  'Cumberland_SOL': { lp:'Cumberland', chain:'SOL', wallet:'CumberlandPayout_SOL' },
+  'Cumberland_ETH': { lp:'Cumberland', chain:'ETH', wallet:'CumberlandPayout_ETH' },
+  'Cumberland_POLYGON':{ lp:'Cumberland', chain:'POLYGON', wallet:'CumberlandPayout_POLYGON' },
+  'Amber_SOL':      { lp:'Amber',      chain:'SOL', wallet:'AmberPayout_SOL'      },
+};
+
+// CCTP-supported chains [§6.3]
+const CCTP_CHAINS = new Set(['ETH','SOL','ARB','BASE','POLYGON','OPTIMISM','AVALANCHE']);
+
+// ═══════════════════════════════════════════════════════════════════
+// FEE SCHEDULE  [§5]
+// ─────────────────────────────────────────────────────────────────
+// Calculated by ORCH before calling Settlement Engine.
+// Engine receives it pre-calculated and never recalculates.
+// Exposed here for test harness use only.
+// ═══════════════════════════════════════════════════════════════════
+function calcFee(usdcAmount, isRWA = false) {
+  if (isRWA) return usdcAmount * 0.00005;    // 0.5bps flat for tokenized RWAs
+  if (usdcAmount > 250_000_000) return usdcAmount * 0.0004;  // negotiated floor
+  if (usdcAmount > 100_000_000) return usdcAmount * 0.0005;  // 5bps
+  if (usdcAmount >  10_000_000) return usdcAmount * 0.0007;  // 7bps
+  return usdcAmount * 0.001;                                  // 10bps
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ORDER STORE  (lightweight — used by test harness only)
+// In production: ORDER_STORE lives in Orchestration Engine.
+// Settlement Engine writes tx hashes to it directly.
+// ═══════════════════════════════════════════════════════════════════
+const ORDER_STORE = {};
+let _orderCounter = 93847590;
+const nextId = () => 'ORD_' + (++_orderCounter);
+
+// ═══════════════════════════════════════════════════════════════════
+//
+//   ███████╗███████╗████████╗████████╗
+//   ██╔════╝██╔════╝╚══██╔══╝╚══██╔══╝
+//   ███████╗█████╗     ██║      ██║
+//   ╚════██║██╔══╝     ██║      ██║
+//   ███████║███████╗   ██║      ██║
+//   ╚══════╝╚══════╝   ╚═╝      ╚═╝
+//
+//   SETTLEMENT ENGINE  —  v1.0
+//   Spec: TenetSystems_SettlementEngine_Spec_v1.docx
+//
+//   Public methods:
+//     extractSettlement(orderId, tenetAddress, settlementTotal, tenetFee, orch)
+//       → Moment 1: co-signs FI vault → TenetSettlementVault  [§3.1]
+//
+//     routeLPPayout(orderId, fills, usdcAmount, tenetFee, orch)
+//       → Moment 2: deducts fee, calculates LP shares, routes per LP [§3.2, §6, §8]
+//
+//   This engine:
+//     NEVER writes to the clearing ledger directly — all writes go through ORCH
+//     NEVER releases vault reservations — that is the Reservation Engine's domain
+//     NEVER modifies order.status — owned by Orchestration
+//     NEVER recalculates fees — fee is passed in pre-calculated and is immutable
+//     NEVER redirects LP settlement to a different chain without LP consent
+//     NEVER discards funds on routing failure — funds stay in TenetSettlementVault
+//     NEVER fails silently — every failure writes via ORCH callback
+//
+// ═══════════════════════════════════════════════════════════════════
+class SettlementEngine {
+
+  constructor(vaultProvider) {
+    this._vault = vaultProvider;
+    this.name   = 'SETT';
+  }
+
+  _log(orderId, msg, cls = '') {
+    engineLog(orderId, msg, cls);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // MOMENT 1 — extractSettlement()  [§3.1]
+  // ─────────────────────────────────────────────────────────────────
+  // Called simultaneously with ExecutionEngine.beginDelivery() via
+  // Promise.all() in Orchestration. This is orchestrated atomicity —
+  // the FI is charged at the exact same moment their asset is delivered.
+  //
+  // Vault address is derived from tenetAddress via FI_REGISTRY.
+  // It is never passed in directly from Orchestration.
+  //
+  // On success: writes settlExtractTx to ORDER_STORE, calls back
+  //   orch._onSettlementExtracted(orderId)
+  // On failure: calls back
+  //   orch._onSettlementFailed(orderId, reason)
+  // ─────────────────────────────────────────────────────────────────
+  async extractSettlement(orderId, tenetAddress, settlementTotal, tenetFee, orch) {
+    this._log(orderId,
+      `Moment 1 · extraction · ${tenetAddress} · total ${usd2(settlementTotal)} (principal + fee)`
+    );
+
+    // ── Resolve FI vault from tenetAddress ───────────────────────
+    const fi = FI_REGISTRY[tenetAddress];
+    if (!fi) {
+      this._log(orderId, `FI_NOT_FOUND · tenetAddress not in registry: ${tenetAddress}`, 're');
+      orch._onSettlementFailed(orderId, 'FI_NOT_FOUND');
+      return;
+    }
+
+    const vaultId = fi.vault;
+    const vault   = VAULT_REGISTRY[vaultId];
+
+    // ── Guard: PENDING_CUSTODY blocked at Gate 1 by Reservation Engine.
+    // Should never reach here. If it does: fail immediately. [§12]
+    if (!vault || vault.status === 'PENDING_CUSTODY') {
+      this._log(orderId,
+        `VAULT_PENDING_CUSTODY · ${vaultId} not yet connected to custody provider`, 're'
+      );
+      orch._onSettlementFailed(orderId, 'VAULT_PENDING_CUSTODY');
+      return;
+    }
+
+    this._log(orderId,
+      `co-signing extraction · ${vaultId} → TenetSettlementVault · ${usd2(settlementTotal)} USDC`
+    );
+
+    // ── Co-sign transfer with retry [§14.2] ─────────────────────
+    try {
+      const tx = await this._retryWithBackoff(
+        () => this._vault.cosignTransfer(vaultId, 'TenetSettlementVault', settlementTotal),
+        3
+      );
+
+      // Write tx hash to order — ORCH reads it from ORDER_STORE on callback
+      if (ORDER_STORE[orderId]) ORDER_STORE[orderId].settlExtractTx = tx;
+
+      this._log(orderId,
+        `extraction confirmed  tx: ${tx}  TenetSettlementVault +${usd2(settlementTotal)}`, 'success'
+      );
+      this._log(orderId,
+        `fee retained: ${usd2(tenetFee)}  LP net: ${usd2(settlementTotal - tenetFee)}`
+      );
+
+      orch._onSettlementExtracted(orderId);
+
+    } catch (e) {
+      this._log(orderId, `VAULT_CO-SIGN_FAILURE · extraction failed after 3 retries · ${e.message}`, 're');
+      orch._onSettlementFailed(orderId, 'VAULT_CO-SIGN_FAILURE');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // MOMENT 2 — routeLPPayout()  [§3.2, §6, §8]
+  // ─────────────────────────────────────────────────────────────────
+  // Called by ORCH after both delivery and extraction are confirmed —
+  // once the order is in AWAITING_SETTLEMENT.
+  //
+  // Steps:
+  //   1. Deduct Tenet fee from TenetSettlementVault balance
+  //   2. Calculate each LP's proportional share of net payout [§8.1]
+  //   3. Net same-chain obligations [§6.2]
+  //   4. Select routing method per obligation [§6.1]
+  //   5. Execute transfers and log tx hashes
+  //   6. Callback: orch._onLPPayoutConfirmed(orderId)
+  //
+  // On partial failure: succeeded transfers are irreversible.
+  //   Failed legs retry independently. Order stays AWAITING_SETTLEMENT
+  //   until all LP legs confirm. [§12 PARTIAL_PAYOUT_FAILURE]
+  // ─────────────────────────────────────────────────────────────────
+  async routeLPPayout(orderId, fills, usdcAmount, tenetFee, orch) {
+    const net = usdcAmount - tenetFee;
+    this._log(orderId,
+      `Moment 2 · LP payout routing · net ${usd2(net)} USDC · Tenet retains ${usd2(tenetFee)}`
+    );
+
+    // ── Step 1: Deduct Tenet fee from TenetSettlementVault ───────
+    if (VAULT_REGISTRY['TenetSettlementVault']) {
+      VAULT_REGISTRY['TenetSettlementVault'].balance -= tenetFee;
+    }
+    this._log(orderId, `Tenet fee deducted · ${usd2(tenetFee)} retained in TenetSettlementVault`);
+
+    // ── Step 2: Calculate proportional LP shares [§8.1] ─────────
+    const totalQty = fills.reduce((s, f) => s + f.qty, 0);
+    const legs     = fills.map(f => {
+      const share = net * (f.qty / totalQty);
+      const lpReg = LP_REGISTRY[f.vault];
+      const chain  = lpReg ? lpReg.chain : (f.chain || 'ETH');
+      const wallet = lpReg ? lpReg.wallet : f.vault + '_PAYOUT';
+      return { vault: f.vault, chain, wallet, qty: f.qty, usdcShare: share };
+    });
+
+    this._log(orderId, `LP share calculation — ${legs.length} leg${legs.length !== 1 ? 's' : ''}`);
+    legs.forEach(l => {
+      this._log(orderId,
+        `  ${l.vault.padEnd(20)} ${usd2(l.usdcShare).padStart(16)} USDC  (${((l.qty/totalQty)*100).toFixed(1)}%)  chain: ${l.chain}`
+      );
+    });
+
+    // ── Step 3: Net same-chain obligations [§6.2] ────────────────
+    // Collapse multiple legs on the same chain into one net obligation
+    // per LP entity to minimize on-chain transactions.
+    const payoutLegs = this._netObligations(orderId, legs);
+
+    // ── Step 4 & 5: Select method and route each obligation [§6.1] ─
+    const settlTxs = [];
+    let allConfirmed = true;
+
+    for (const leg of payoutLegs) {
+      const method = this._selectMethod(leg.chain);
+      this._log(orderId,
+        `routing · ${leg.vault}  ${usd2(leg.usdcShare)}  via ${method}  → ${leg.wallet}`
+      );
+
+      try {
+        // [INTEGRATION POINT] Replace with real CCTP / Everclear API call
+        const tx = await this._retryWithBackoff(
+          () => this._mockRoute(leg, method),
+          3
+        );
+        settlTxs.push(tx);
+        if (ORDER_STORE[orderId]) ORDER_STORE[orderId].settlTx = tx;
+
+        this._log(orderId,
+          `${method} confirmed · ${leg.vault} · tx: ${tx}  ${usd2(leg.usdcShare)} USDC on ${leg.chain}`,
+          'success'
+        );
+      } catch (e) {
+        // PARTIAL_PAYOUT_FAILURE [§12]: succeeded transfers are irreversible.
+        // This leg stays pending — retry scheduler would pick this up in production.
+        this._log(orderId,
+          `PARTIAL_PAYOUT_FAILURE · ${leg.vault} routing failed · ${e.message} · leg pending`, 're'
+        );
+        allConfirmed = false;
+        // In v1: report failure. Production retry scheduler handles re-queuing.
+        // Funds remain in TenetSettlementVault — never lost. [§7 INVARIANT]
+      }
+    }
+
+    if (allConfirmed) {
+      this._log(orderId,
+        `all LP payouts confirmed · ${legs.length} leg${legs.length !== 1 ? 's' : ''} · native chain guaranteed`,
+        'success'
+      );
+      orch._onLPPayoutConfirmed(orderId);
+    } else {
+      // Not all legs confirmed — order stays AWAITING_SETTLEMENT
+      // Funds in TenetSettlementVault are safe. Retry scheduler in production.
+      orch._onSettlementFailed(orderId, 'PARTIAL_PAYOUT_FAILURE');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // _netObligations()  [§6.2]
+  // ─────────────────────────────────────────────────────────────────
+  // Collapse multiple legs from the same LP entity on the same chain
+  // into a single net obligation. Reduces on-chain transaction count.
+  // Netting is per LP identity + chain — not just per chain.
+  // ─────────────────────────────────────────────────────────────────
+  _netObligations(orderId, legs) {
+    const grouped = {};
+
+    for (const leg of legs) {
+      // Net key = LP entity (first part of vault name) + chain
+      const lpEntity = leg.vault.split('_')[0];
+      const key      = `${lpEntity}_${leg.chain}`;
+
+      if (!grouped[key]) {
+        grouped[key] = { ...leg, vault: leg.vault, _isNetted: false };
+      } else {
+        grouped[key].usdcShare += leg.usdcShare;
+        grouped[key].qty       += leg.qty;
+        grouped[key]._isNetted  = true;
+      }
+    }
+
+    const result = Object.values(grouped);
+
+    const netted = result.filter(r => r._isNetted);
+    if (netted.length > 0) {
+      this._log(orderId,
+        `netting applied · ${legs.length} legs → ${result.length} obligations · ` +
+        netted.map(n => `${n.vault.split('_')[0]} on ${n.chain}`).join(', ')
+      );
+    } else {
+      this._log(orderId, `no netting applicable · each LP on distinct chain`);
+    }
+
+    return result;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // _selectMethod()  [§6.1]
+  // ─────────────────────────────────────────────────────────────────
+  // Priority order:
+  //   1. INTERNAL NETTING — handled upstream in _netObligations()
+  //   2. CCTP — USDC, LP native chain is CCTP-supported
+  //   3. EVERCLEAR — non-USDC or chain not CCTP-supported (universal fallback)
+  //
+  // Internal netting is always preferred where possible. After netting,
+  // CCTP is preferred over Everclear for USDC.
+  // ─────────────────────────────────────────────────────────────────
+  _selectMethod(chain) {
+    return CCTP_CHAINS.has(chain.toUpperCase()) ? 'CCTP' : 'Everclear';
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // _mockRoute()  [§14.3, §14.4]
+  // ─────────────────────────────────────────────────────────────────
+  // Simulates CCTP burn-and-mint or Everclear intent posting.
+  //
+  // [CCTP INTEGRATION POINT]
+  //   POST /v1/messages/send   → burn on source chain
+  //   Poll for attestation
+  //   POST /v1/messages/receive → mint on destination chain
+  //   Circle SDK replaces this mock entirely.
+  //
+  // [EVERCLEAR INTEGRATION POINT]
+  //   POST transfer intent to Everclear API
+  //   Poll for delivery confirmation
+  //   Settlement time varies by chain pair.
+  // ─────────────────────────────────────────────────────────────────
+  async _mockRoute(leg, method) {
+    const delay = method === 'CCTP'
+      ? rnd(2000, 5000)     // §6.3: 2-5 minutes (simulated compressed)
+      : rnd(3000, 8000);    // §6.4: Everclear protocol window (simulated)
+    await wait(delay / 20); // compress for demo
+    return txHash();
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // _retryWithBackoff()  [§14.2]
+  // ─────────────────────────────────────────────────────────────────
+  // maxRetries = 3
+  // Delays: 500ms → 1000ms → 2000ms (exponential, multiplier = 2)
+  // After three failed retries, throws — calling function handles
+  // failure per §12.
+  // ─────────────────────────────────────────────────────────────────
+  async _retryWithBackoff(fn, maxRetries = 3) {
+    let delay = 500;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        if (attempt === maxRetries) throw e;
+        this._log('retry', `  retry ${attempt}/${maxRetries - 1} · waiting ${delay}ms · ${e.message}`, 'warn');
+        await wait(delay);
+        delay *= 2;
+      }
+    }
+  }
+}
+
+// Singleton — exposed for wiring to Orchestration Engine
+// [WIRING POINT] ORCH instantiates this and passes VaultProvider
+const SETT = new SettlementEngine(VaultProvider);
+window.TENET_SETT = SETT;
+
+// ═══════════════════════════════════════════════════════════════════
+// MOCK ORCHESTRATION CALLBACKS
+// Used only by the test harness — in production ORCH owns these.
+// ═══════════════════════════════════════════════════════════════════
+const MockOrch = {
+  _onSettlementExtracted: (orderId) => {
+    engineLog(orderId, `ORCH callback: _onSettlementExtracted · ${orderId}`, 'success');
+    _out('', 'blank');
+    _out('EXTRACTION CONFIRMED → callback to Orchestration Engine', 'success');
+    _out('ORCH: both legs fire check — delivery + extraction confirmed', 'dim');
+    _out('ORCH: transitioning order to AWAITING_SETTLEMENT', 'dim');
+  },
+  _onLPPayoutConfirmed: (orderId) => {
+    engineLog(orderId, `ORCH callback: _onLPPayoutConfirmed · ${orderId}`, 'success');
+    _out('', 'blank');
+    _out('LP PAYOUT CONFIRMED → callback to Orchestration Engine', 'success');
+    _out('ORCH: releasing all reservations (FI + LP)', 'dim');
+    _out('ORCH: transitioning order to COMPLETED', 'dim');
+  },
+  _onSettlementFailed: (orderId, reason) => {
+    engineLog(orderId, `ORCH callback: _onSettlementFailed · ${reason}`, 're');
+    _out('', 'blank');
+    _out(`SETTLEMENT FAILED → callback to Orchestration Engine · ${reason}`, 'error');
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// TEST HARNESS
+// ═══════════════════════════════════════════════════════════════════
+
+// Build a fill plan from vault + qty pairs
+function buildFills(pairs) {
+  return pairs.map(([vault, qty]) => ({ vault, qty }));
+}
+
+// ── Test scenarios ────────────────────────────────────────────────
+const TESTS = {
+  // §11 worked example — $50M, 4-LP split, all on SOL → NETTING applies
+  t1: {
+    label: '§11 Worked example — $50M 4-LP split on SOL',
+    fi: 'GoldmanSachs_x800',
+    usdcAmount: 50_000_000,
+    fills: buildFills([
+      ['Cumberland_SOL', 4094],
+      ['Wintermute_SOL', 5776],
+      ['Galaxy_SOL',     5130],
+      ['Amber_SOL',      68  ],
+    ]),
+  },
+
+  // Single LP, CCTP routing (SOL)
+  t2: {
+    label: 'Single LP — small order, CCTP routing',
+    fi: 'JPMorgan_x240',
+    usdcAmount: 500_000,
+    fills: buildFills([['Wintermute_SOL', 150.62]]),
+  },
+
+  // Multi-LP netting — two Cumberland legs on SOL → net into one transfer
+  t3: {
+    label: 'Multi-LP — netting on same chain',
+    fi: 'BlackRock_x320',
+    usdcAmount: 5_000_000,
+    fills: buildFills([
+      ['Cumberland_SOL', 1200],
+      ['Galaxy_SOL',     950 ],
+      ['Amber_SOL',      150 ],
+    ]),
+  },
+
+  // Cross-chain: SOL + ETH — CCTP on both, different chains, no netting
+  t4: {
+    label: 'Cross-chain — SOL + ETH CCTP mix',
+    fi: 'GoldmanSachs_x800',
+    usdcAmount: 10_000_000,
+    fills: buildFills([
+      ['Wintermute_SOL', 1800],
+      ['Wintermute_ETH', 1100],
+    ]),
+  },
+
+  // FI not found — FI_NOT_FOUND failure path [§12]
+  t5: {
+    label: 'FI not found — FI_NOT_FOUND failure path',
+    fi: 'UnknownFI_x999',
+    usdcAmount: 1_000_000,
+    fills: buildFills([['Wintermute_SOL', 300]]),
+  },
+
+  // FI vault pending custody — VAULT_PENDING_CUSTODY [§12]
+  t6: {
+    label: 'FI vault pending — VAULT_PENDING_CUSTODY',
+    fi: 'Fidelity_x510',
+    usdcAmount: 2_000_000,
+    fills: buildFills([['Wintermute_SOL', 600]]),
+  },
+
+  // Large order — tiered fee at 7bps ($150M)
+  t7: {
+    label: 'Tiered fee — $150M order at 7bps',
+    fi: 'BlackRock_x320',
+    usdcAmount: 150_000_000,
+    fills: buildFills([
+      ['Wintermute_ETH', 8200],
+      ['Cumberland_ETH', 320 ],
+    ]),
+  },
+
+  // Everclear routing — LP on non-CCTP chain (POLYGON falls through to Everclear
+  // only when not in CCTP list; here we manually test Everclear by using the flag)
+  t8: {
+    label: 'Everclear routing — POLYGON chain LP',
+    fi: 'GoldmanSachs_x800',
+    usdcAmount: 3_000_000,
+    fills: buildFills([['Cumberland_POLYGON', 1_200_000]]),
+  },
+};
+
+async function _runScenario({ orderId, fi, usdcAmount, fills, label = '' }) {
+  clearOutput();
+  document.getElementById('output-title').textContent = `${orderId} · Running`;
+  document.getElementById('output-status').textContent = '';
+
+  const fee   = calcFee(usdcAmount);
+  const total = usdcAmount + fee;
+
+  // Register order in store
+  ORDER_STORE[orderId] = {
+    id: orderId, status: 'DELIVERING',
+    tenetAddress: fi,
+    usdcAmount, fee, total,
+    fills,
+    settlExtractTx: null, settlTx: null,
+  };
+
+  // ── Header ───────────────────────────────────────────────────────
+  _out('═'.repeat(72), 'sep');
+  _out(`  SETTLEMENT ENGINE  ·  ${orderId}`, 'head');
+  _out('═'.repeat(72), 'sep');
+  _out('', 'blank');
+  if (label) _out(`  Scenario       ${label}`, 'dim');
+  _out(`  FI             ${fi}`, 'result');
+  _out(`  USDC amount    ${usd2(usdcAmount)}`, 'result');
+  _out(`  Tenet fee      ${usd2(fee)}  (${(fee / usdcAmount * 10000).toFixed(1)}bps)`, 'info');
+  _out(`  Vault extract  ${usd2(total)}`, 'bright');
+  _out(`  Fill legs      ${fills.length}`, 'info');
+  fills.forEach(f => _out(`    ${f.vault.padEnd(22)} qty: ${num(f.qty, 4)}`, 'dim'));
+  _out('', 'blank');
+
+  // ── MOMENT 1: Extraction ─────────────────────────────────────────
+  _out('─'.repeat(72), 'sep');
+  _out('  MOMENT 1 · EXTRACTION  [§3.1]', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+  _out('  Promise.all([exec.beginDelivery(), sett.extractSettlement()])', 'dim');
+  _out('  → orchestrated atomicity — delivery and extraction fire simultaneously', 'dim');
+  _out('', 'blank');
+
+  const t0 = Date.now();
+  await SETT.extractSettlement(orderId, fi, total, fee, MockOrch);
+  const extractMs = Date.now() - t0;
+
+  const extractTx = ORDER_STORE[orderId]?.settlExtractTx;
+  if (!extractTx) {
+    // Failure path — already logged and callback fired
+    _out('', 'blank');
+    document.getElementById('output-title').textContent = `${orderId} · EXTRACTION FAILED`;
+    document.getElementById('output-status').textContent = `${extractMs}ms`;
+    return { ok: false };
+  }
+
+  _out('', 'blank');
+  _out(`  Extraction tx   ${extractTx}`, 'bright');
+  _out(`  Extract time    ${extractMs}ms`, 'dim');
+
+  // ── MOMENT 2: LP Payout Routing ──────────────────────────────────
+  _out('', 'blank');
+  _out('─'.repeat(72), 'sep');
+  _out('  MOMENT 2 · LP PAYOUT ROUTING  [§3.2, §6, §8]', 'head');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+  _out('  Fires after ORCH confirms both delivery + extraction confirmed.', 'dim');
+  _out('  Order is now in AWAITING_SETTLEMENT state.', 'dim');
+  _out('', 'blank');
+
+  const t1 = Date.now();
+  await SETT.routeLPPayout(orderId, fills, usdcAmount, fee, MockOrch);
+  const payoutMs = Date.now() - t1;
+
+  const settlTx = ORDER_STORE[orderId]?.settlTx;
+  const ok = !!settlTx;
+
+  // ── Summary ──────────────────────────────────────────────────────
+  _out('', 'blank');
+  _out('─'.repeat(72), 'sep');
+  _out(`  RESULT  ·  ${ok ? 'SETTLEMENT COMPLETE' : 'SETTLEMENT FAILED'}`, ok ? 'head' : 'error');
+  _out('─'.repeat(72), 'sep');
+  _out('', 'blank');
+  _out(`  Status          ${ok ? 'COMPLETED' : 'AWAITING_SETTLEMENT (retry pending)'}`, ok ? 'success' : 'warn');
+  _out(`  USDC extracted  ${usd2(total)}  from FI vault`, 'bright');
+  _out(`  Tenet fee       ${usd2(fee)}  retained permanently`, 'info');
+  _out(`  LP net payout   ${usd2(usdcAmount - fee)}  distributed`, ok ? 'success' : 'warn');
+  _out(`  Extraction tx   ${extractTx}`, 'dim');
+  _out(`  Settlement tx   ${settlTx || '(pending)'}`, ok ? 'dim' : 'warn');
+  _out(`  Extract time    ${extractMs}ms`, 'dim');
+  _out(`  Payout time     ${payoutMs}ms`, 'dim');
+  _out(`  Total time      ${extractMs + payoutMs}ms`, 'dim');
+  _out('', 'blank');
+
+  if (ok) {
+    _out('  Next: ORCH releases all FI + LP reservations', 'dim');
+    _out('  Next: ORCH transitions order → COMPLETED', 'dim');
+    _out('  Next: ORCH writes COMPLETED record to clearing ledger', 'dim');
+  } else {
+    _out('  Funds remain in TenetSettlementVault — never lost  [§7 INVARIANT]', 'warn');
+    _out('  Retry scheduler activates — CCTP re-checked every 2min [§7.2]', 'dim');
+  }
+  _out('', 'blank');
+
+  document.getElementById('output-title').textContent =
+    `${orderId} · ${ok ? 'COMPLETE' : 'FAILED'} · ${fills.length} leg${fills.length !== 1 ? 's' : ''}`;
+  document.getElementById('output-status').textContent = `${extractMs + payoutMs}ms`;
+
+  return { ok };
+}
+
+// ── Custom scenario ────────────────────────────────────────────────
+async function runCustom() {
+  const fi        = document.getElementById('p-fi').value;
+  const amount    = parseFloat(document.getElementById('p-amount').value);
+  const lp1       = document.getElementById('p-lp1').value;
+  const qty1      = parseFloat(document.getElementById('p-qty1').value);
+  const lp2       = document.getElementById('p-lp2').value;
+  const qty2      = parseFloat(document.getElementById('p-qty2').value);
+
+  const fills = lp2 && qty2 > 0
+    ? buildFills([[lp1, qty1], [lp2, qty2]])
+    : buildFills([[lp1, qty1]]);
+
+  await _runScenario({
+    orderId: nextId(),
+    fi,
+    usdcAmount: amount,
+    fills,
+    label: 'Custom',
+  });
+}
+
+// ── Named test cases ──────────────────────────────────────────────
+async function runTest(id) {
+  const test = TESTS[id];
+  const btn  = document.getElementById(id);
+  btn.className = 'test-btn running';
+  btn.textContent = '◉ ' + test.label + ' — running…';
+
+  const result = await _runScenario({
+    orderId: nextId(),
+    fi:         test.fi,
+    usdcAmount: test.usdcAmount,
+    fills:      test.fills,
+    label:      test.label,
+  });
+
+  btn.className = 'test-btn ' + (result.ok ? 'pass' : 'fail');
+  btn.textContent = (result.ok ? '✓ ' : '✗ ') + test.label;
+}
+
+async function runAll() {
+  for (const id of Object.keys(TESTS)) {
+    await runTest(id);
+    await wait(400);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OUTPUT PANEL
+// ═══════════════════════════════════════════════════════════════════
+const $out = document.getElementById('output');
+
+function _out(text, cls = 'info') {
+  const el = document.createElement('span');
+  el.className = 'ln ' + cls;
+  el.textContent = text;
+  $out.appendChild(el);
+  $out.scrollTop = $out.scrollHeight;
+}
+
+function clearOutput() { $out.innerHTML = ''; }
+
+// ── ENGINE LOG STRIP ──────────────────────────────────────────────
+let _logEls = [], _logInit = false;
+function _stripLog(msg, cls = '') {
+  const strip = document.getElementById('eng-log');
+  if (!_logInit) { strip.innerHTML = ''; _logInit = true; }
+  const el = document.createElement('div');
+  el.className = 'loge';
+  el.innerHTML =
+    `<span class="logets">${shrt()}</span>` +
+    `<span class="logesrc es">SETT</span>` +
+    `<span class="logemsg">${msg.length > 65 ? msg.slice(0, 65) + '…' : msg}</span>`;
+  strip.insertBefore(el, strip.firstChild);
+  _logEls.push(el);
+  if (_logEls.length > 8) { _logEls.shift().remove(); }
+}
+
+function engineLog(orderId, msg, cls = '') {
+  _stripLog(msg, cls);
+  _out(msg, cls || 'info');
+}
+
+// ── CLOCK ──────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('clk').textContent =
+    new Date().toUTCString().slice(17, 25) + ' UTC';
+}, 1000);
+
+// ── BOOT ───────────────────────────────────────────────────────────
+_out('═'.repeat(72), 'sep');
+_out('  TENET SYSTEMS  ·  Settlement Engine  ·  v1.0', 'head');
+_out('═'.repeat(72), 'sep');
+_out('', 'blank');
+_out('  Spec: TenetSystems_SettlementEngine_Spec_v1.docx', 'dim');
+_out('', 'blank');
+_out('  Implements:', 'dim');
+_out('    §3.1  Moment 1 — extractSettlement()  (orchestrated atomicity)', 'dim');
+_out('    §3.2  Moment 2 — routeLPPayout()      (proportional share + routing)', 'dim');
+_out('    §5    Fee schedule — tiered 10/7/5bps + 0.5bps RWA flat', 'dim');
+_out('    §6.1  Routing method selection — CCTP > Everclear', 'dim');
+_out('    §6.2  Internal netting — same LP entity + chain obligations collapsed', 'dim');
+_out('    §6.3  CCTP — burn/mint, 7-chain support, 2-5min settlement', 'dim');
+_out('    §6.4  Everclear — non-USDC / non-CCTP chain fallback', 'dim');
+_out('    §7    Routing failure invariant — funds stay in TenetSettlementVault', 'dim');
+_out('    §8    Multi-LP proportional payout by qty contributed', 'dim');
+_out('    §12   All failure paths — FI_NOT_FOUND, VAULT_PENDING_CUSTODY,', 'dim');
+_out('            VAULT_CO-SIGN_FAILURE, PARTIAL_PAYOUT_FAILURE', 'dim');
+_out('    §14.2 Retry with exponential backoff — 500/1000/2000ms', 'dim');
+_out('', 'blank');
+_out('  Vault state:', 'dim');
+_out('    TenetSettlementVault        balance: $0.00  (receives extraction, routes payout)', 'dim');
+Object.entries(VAULT_REGISTRY).filter(([,v]) => v.type === 'FI_SETTLEMENT').forEach(([k,v]) => {
+  _out(`    ${k.padEnd(26)} balance: ${usd2(v.balance).padStart(14)}  status: ${v.status}`, 'dim');
+});
+_out('', 'blank');
+_out('  Wiring contract for Orchestration Engine:', 'dim');
+_out('', 'blank');
+_out('    SETT.extractSettlement(orderId, tenetAddress, settlementTotal, tenetFee, orch)', 'dim');
+_out('      → orch._onSettlementExtracted(orderId)', 'dim');
+_out('      → orch._onSettlementFailed(orderId, reason)', 'dim');
+_out('', 'blank');
+_out('    SETT.routeLPPayout(orderId, fills, usdcAmount, tenetFee, orch)', 'dim');
+_out('      → orch._onLPPayoutConfirmed(orderId)', 'dim');
+_out('      → orch._onSettlementFailed(orderId, reason)', 'dim');
+_out('', 'blank');
+_out('  window.TENET_SETT is exposed for ORCH wiring.', 'dim');
+_out('', 'blank');
+_out('─'.repeat(72), 'sep');
+_out('  Select a test case on the left or submit a custom scenario.', 'dim');
+_out('', 'blank');
+</script>
+</body>
+</html>
